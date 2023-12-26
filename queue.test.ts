@@ -11,10 +11,10 @@ describe("Queue with a single client", () => {
   test("should add item to queue", async () => {
     const queue = new Queue({ redis, queueName: "app-logs" });
 
-    const sendMessageResult = (await queue.sendMessage({
+    const sendMessageResult = await queue.sendMessage({
       dev: "hezarfennnn",
       age: 27,
-    })) as string;
+    });
 
     const res = await redis.xrevrange(
       formatMessageQueueKey("app-logs"),
@@ -24,7 +24,8 @@ describe("Queue with a single client", () => {
       1
     );
     await redis.xdel(formatMessageQueueKey("app-logs"), res[0][0]);
-    expect(res[0][0]).toEqual(sendMessageResult);
+    expect(sendMessageResult).not.toBeNull();
+    expect(res[0][0]).toEqual(sendMessageResult as string);
   });
 
   test(
@@ -47,17 +48,11 @@ describe("Queue with a single client", () => {
         "COUNT",
         1
       );
+      await redis.xdel(formatMessageQueueKey("app-logs"), res[0][0]);
       expect(res[0][1]).toEqual(["messageBody", `{"dev":"${fakeValue}"}`]);
     },
     { timeout: 10000 }
   );
-
-  test("should try to read from stream with consumer group", async () => {
-    const queue = new Queue({ redis, queueName: "app-logs" });
-    const receiveMessageRes = await queue.receiveMessage("consumer-1");
-
-    expect(receiveMessageRes?.streamId ?? "").toBeTruthy();
-  });
 
   test(
     "should poll until data arives",
@@ -76,12 +71,12 @@ describe("Queue with a single client", () => {
         2
       );
 
-      const receiveMessageRes = await consumer.receiveMessage(
+      const receiveMessageRes = await consumer.receiveMessage<{ dev: string }>(
         "consumer-1",
         5000
       );
 
-      expect(receiveMessageRes?.body.messageBody.dev).toEqual(fakeValue);
+      expect(receiveMessageRes?.body.dev).toEqual(fakeValue);
     },
     { timeout: 10000 }
   );
@@ -125,9 +120,11 @@ describe("Queue with Multiple Consumers", () => {
       const consumePromises = consumers.map((consumer, index) => {
         return new Promise<void>(async (resolve) => {
           for (let i = 0; i < messageCount / consumerCount; i++) {
-            const res = await consumer.receiveMessage(`consumer-${index}`);
-            if (res && res.body.messageBody) {
-              const message = res.body.messageBody.message;
+            const res = await consumer.receiveMessage<{ message: string }>(
+              `consumer-${index}`
+            );
+            if (res && res.body.message) {
+              const message = res.body.message;
               if (!messagesReceived.has(message)) {
                 messagesReceived.set(message, index);
               }

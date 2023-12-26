@@ -18,11 +18,11 @@ export const delay = (duration: number): Promise<void> => {
  * @param {number} delay - Initial delay in milliseconds.
  * @returns {Promise<any>} - The result of the function `fn`.
  */
-export async function retryWithBackoff<T>(
+export const retryWithBackoff = async <T>(
   fn: () => Promise<T>,
   maxAttempts: number = 3,
   delay: number = 1000
-): Promise<T> {
+): Promise<T> => {
   let attempts = 0;
 
   async function attempt() {
@@ -43,4 +43,38 @@ export async function retryWithBackoff<T>(
   }
 
   return attempt();
-}
+};
+
+type RedisStreamMessage = [string, string];
+
+type RedisStreamEntry = [string, RedisStreamMessage[]];
+
+type RedisStreamArray = RedisStreamEntry[];
+
+export const parseRedisStreamMessage = <StreamResult>(
+  streamArray: unknown[]
+): { streamId: string; body: StreamResult } | null => {
+  const typedStream = streamArray as RedisStreamArray;
+  // Safely access nested elements
+  const streamData = typedStream?.[0];
+  const firstMessage = streamData?.[1]?.[0];
+  const streamId = firstMessage?.[0];
+  const messageBodyString = firstMessage?.[1]?.[1];
+
+  if (!streamId || !messageBodyString) {
+    return null;
+  }
+
+  let messageBody;
+  try {
+    messageBody = JSON.parse(messageBodyString);
+  } catch (e) {
+    console.error("Failed to parse message body:", e);
+    return null;
+  }
+
+  return {
+    streamId: streamId,
+    body: messageBody,
+  };
+};

@@ -1,6 +1,10 @@
 import { EventEmitter } from "events";
 import Redis from "ioredis";
-import { formatMessageQueueKey, retryWithBackoff } from "./utils";
+import {
+  formatMessageQueueKey,
+  parseRedisStreamMessage,
+  retryWithBackoff,
+} from "./utils";
 
 //Better visibilty control instead of relying only for pending state
 //Move failed acked items to DLQ,then delete it from current stream
@@ -63,9 +67,12 @@ export class Queue extends EventEmitter {
         redis.xadd(streamKey, "*", ...flattenedPayload);
 
       if (delayInSeconds > 0) {
+        let streamIdResult: string | null = null;
+
         const timeoutId = setTimeout(() => {
           retryWithBackoff(_sendMessage)
-            .then(() => {
+            .then((res) => {
+              streamIdResult = res;
               this.messageTimeouts.delete(timeoutId);
             })
             .catch((error) => {
@@ -73,22 +80,23 @@ export class Queue extends EventEmitter {
             });
         }, delayInSeconds * 1000);
         this.messageTimeouts.add(timeoutId);
+        return streamIdResult;
       } else {
         return await retryWithBackoff(_sendMessage);
       }
     } catch (error) {
       this.emit("error", error);
       console.error("Error in sendMessage:", error);
+      return null;
     }
   }
 
-  async receiveMessage(consumerName: string, blockTimeMs = 5000) {
+  async receiveMessage<StreamResult>(consumerName: string, blockTimeMs = 0) {
     const { redis } = this.config;
 
-    // Wrapper function for the retryable part of receiveMessage
     const receiveAndProcessMessage = async () => {
       try {
-        const res = await redis.xreadgroup(
+        const xreadRes = await redis.xreadgroup(
           "GROUP",
           CONSUMER_GROUP_NAME,
           consumerName,
@@ -100,32 +108,20 @@ export class Queue extends EventEmitter {
           this.createStreamKey(),
           ">"
         );
-        // Check if a message was received
-        //@ts-ignore
-        if (res && res.length > 0 && res[0][1].length > 0) {
-          // Message found, process and return
-          //@ts-ignore
-          const resultBody = res[0][1][0] as [string, [string, string]];
-          const resultObject = {
-            streamId: resultBody[0],
-            body: {
-              [resultBody[1][0]]: JSON.parse(resultBody[1][1]),
-            },
-          };
-          await this.verifyMessage(redis, resultObject);
-          return resultObject;
-        }
-        return null;
+        const parsedMessage = parseRedisStreamMessage<StreamResult>(xreadRes);
+        if (!parsedMessage) return null;
+
+        await this.verifyMessage<StreamResult>(redis, parsedMessage);
+        return parsedMessage;
       } catch (error) {
         this.emit(
           "receiveError",
           `Error receiving message: ${(error as Error).message}`
         );
-        throw error; // Rethrow the error to be caught by retryWithBackoff
+        throw error;
       }
     };
 
-    // Use retryWithBackoff to retry the receiveAndProcessMessage function
     try {
       return await retryWithBackoff(receiveAndProcessMessage);
     } catch (finalError) {
@@ -134,13 +130,13 @@ export class Queue extends EventEmitter {
           (finalError as Error).message
         }`
       );
-      throw finalError; // Optional: rethrow or handle the error after all retries fail
+      throw finalError;
     }
   }
 
-  private async verifyMessage(
+  private async verifyMessage<StreamResult>(
     redis: Redis,
-    resultObject: { streamId: string; body: { [x: string]: any } }
+    resultObject: { streamId: string; body: StreamResult }
   ) {
     const attemptAck = async () => {
       await redis.xack(
@@ -151,7 +147,6 @@ export class Queue extends EventEmitter {
     };
 
     try {
-      // Use retryWithBackoff to retry the acknowledgment
       await retryWithBackoff(attemptAck);
     } catch (finalError) {
       console.error(
