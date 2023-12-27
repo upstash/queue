@@ -1,26 +1,20 @@
 import { EventEmitter } from "events";
 import Redis from "ioredis";
 import {
+  DEFAULT_AUTO_VERIFY,
+  DEFAULT_CONCURRENCY_LIMIT,
+  DEFAULT_CONSUMER_GROUP_NAME,
+  DEFAULT_CONSUMER_PREFIX,
+  DEFAULT_QUEUE_NAME,
+  ERROR_MAP,
+  MAX_CONCURRENCY_LIMIT,
+} from "./constants";
+import {
   formatMessageQueueKey,
   invariant,
   parseRedisStreamMessage,
   retryWithBackoff,
 } from "./utils";
-
-export const DEFAULT_CONSUMER_GROUP_NAME = "Messages";
-export const DEFAULT_CONSUMER_PREFIX = "Consumer";
-export const DEFAULT_QUEUE_NAME = "Queue";
-export const DEFAULT_CONCURRENCY_LIMIT = 0;
-export const DEFAULT_AUTO_VERIFY = true;
-
-export const MAX_CONCURRENCY_LIMIT = 5;
-
-export const ERROR_MAP = {
-  CONCURRENCY_LIMIT_EXCEEDED: `Cannot receive more than ${MAX_CONCURRENCY_LIMIT}`,
-  CONCURRENCY_DEFAULT_LIMIT_EXCEEDED: `Cannot receive more than ${
-    DEFAULT_CONCURRENCY_LIMIT + 1
-  }, due to default limit not being set`,
-};
 
 export type QueueConfig = {
   redis: Redis;
@@ -127,7 +121,7 @@ export class Queue extends EventEmitter {
 
   async receiveMessage<StreamResult>(blockTimeMs = 0) {
     const receiveAndProcessMessage = async () => {
-      const { redis, concurrencyLimit, autoVerify } = this.config;
+      const { concurrencyLimit, autoVerify } = this.config;
 
       const concurrencyNotSetAndAboveDefaultLimit =
         concurrencyLimit === DEFAULT_CONCURRENCY_LIMIT &&
@@ -153,7 +147,7 @@ export class Queue extends EventEmitter {
       if (!parsedMessage) return null;
 
       if (autoVerify) {
-        await this.verifyMessage<StreamResult>(parsedMessage.streamId);
+        await this.verifyMessage(parsedMessage.streamId);
       }
 
       return parsedMessage;
@@ -213,7 +207,7 @@ export class Queue extends EventEmitter {
     );
   }
 
-  async verifyMessage<StreamResult>(streamId: string) {
+  async verifyMessage(streamId: string) {
     const { redis } = this.config;
     const attemptAck = async () => {
       invariant(
@@ -245,8 +239,6 @@ export class Queue extends EventEmitter {
         }`
       );
       this.emit("error", finalError);
-      //Return null to prevent another retry within receiveMessage
-      return null;
     }
   }
 
@@ -277,3 +269,10 @@ export class Queue extends EventEmitter {
     this.concurrencyCounter--;
   }
 }
+export {
+  DEFAULT_AUTO_VERIFY,
+  DEFAULT_CONCURRENCY_LIMIT,
+  DEFAULT_CONSUMER_GROUP_NAME,
+  DEFAULT_QUEUE_NAME,
+  ERROR_MAP,
+};

@@ -1,13 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { Redis } from "ioredis";
+
 import {
   DEFAULT_AUTO_VERIFY,
   DEFAULT_CONCURRENCY_LIMIT,
   DEFAULT_CONSUMER_GROUP_NAME,
   DEFAULT_QUEUE_NAME,
   ERROR_MAP,
-  Queue,
-} from "./queue";
+} from "./constants";
+import { Queue } from "./queue";
 import { formatMessageQueueKey } from "./utils";
 
 const randomValue = () => crypto.randomUUID().slice(0, 8);
