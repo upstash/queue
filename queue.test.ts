@@ -12,9 +12,8 @@ import { formatMessageQueueKey } from "./utils";
 
 const randomValue = () => crypto.randomUUID().slice(0, 8);
 const redis = new Redis();
-const consumerClient = new Redis();
 
-describe("Queue with default and customized queue name", () => {
+describe("Queue name", () => {
   test("should return the default queue name", () => {
     const queue = new Queue({ redis });
     expect(queue.config.queueName).toEqual(
@@ -29,7 +28,7 @@ describe("Queue with default and customized queue name", () => {
   });
 });
 
-describe("Queue with default and customized consumerGroup", () => {
+describe("Consumer group name", () => {
   test("should return the default customerGroupName", () => {
     const queue = new Queue({ redis, queueName: randomValue() });
     expect(queue.config.consumerGroupName).toEqual(DEFAULT_CONSUMER_GROUP_NAME);
@@ -46,7 +45,7 @@ describe("Queue with default and customized consumerGroup", () => {
   });
 });
 
-describe("Queue with default and customized concurrency limit", () => {
+describe("Concurrency limit default option", () => {
   test("should return 0 when concurrency is default", () => {
     const queue = new Queue({ redis, queueName: randomValue() });
     expect(queue.config.concurrencyLimit).toEqual(DEFAULT_CONCURRENCY_LIMIT);
@@ -63,7 +62,7 @@ describe("Queue with default and customized concurrency limit", () => {
   });
 });
 
-describe("Queue with default and customized message verify(ack)", () => {
+describe("Auto verify default option", () => {
   test("should return 0 when concurrency is default", () => {
     const queue = new Queue({ redis, queueName: randomValue() });
     expect(queue.config.autoVerify).toEqual(DEFAULT_AUTO_VERIFY);
