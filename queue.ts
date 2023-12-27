@@ -7,14 +7,16 @@ import {
   retryWithBackoff,
 } from "./utils";
 
-export const DEFAULT_CONSUMER_GROUP_NAME = "MESSAGES";
-export const DEFAULT_CONSUMER_PREFIX = "CONSUMER";
-export const DEFAULT_QUEUE_NAME = "QUEUE";
+export const DEFAULT_CONSUMER_GROUP_NAME = "Messages";
+export const DEFAULT_CONSUMER_PREFIX = "Consumer";
+export const DEFAULT_QUEUE_NAME = "Queue";
+export const DEFAULT_CONCURRENCY_LIMIT = 0;
+export const DEFAULT_AUTO_VERIFY = true;
 
 export type QueueConfig = {
   redis: Redis;
   queueName?: string;
-  concurrencyLimit?: number;
+  concurrencyLimit?: 0 | 1 | 2 | 3 | 4 | 5;
   autoVerify?: boolean;
   consumerGroupName?: string;
   consumerNamePrefix?: string;
@@ -29,22 +31,17 @@ export class Queue extends EventEmitter {
     this.config = {
       redis: config.redis,
 
-      concurrencyLimit: config.concurrencyLimit ?? 0,
-      autoVerify: config.autoVerify ?? true,
-      consumerGroupName: config.consumerGroupName
-        ? this.appendPrefixTo(config.consumerGroupName)
-        : this.appendPrefixTo(DEFAULT_CONSUMER_GROUP_NAME),
+      concurrencyLimit: config.concurrencyLimit ?? DEFAULT_CONCURRENCY_LIMIT,
+      autoVerify: config.autoVerify ?? DEFAULT_AUTO_VERIFY,
+      consumerGroupName:
+        config.consumerGroupName ?? DEFAULT_CONSUMER_GROUP_NAME,
       consumerNamePrefix: config.consumerNamePrefix ?? DEFAULT_CONSUMER_PREFIX,
-      queueName: config.queueName ?? DEFAULT_QUEUE_NAME,
+      queueName: config.queueName
+        ? this.appendPrefixTo(config.queueName)
+        : this.appendPrefixTo(DEFAULT_QUEUE_NAME),
     };
     this.initializeConsumerGroup();
     this.setupShutdownHandler();
-  }
-
-  private createKey() {
-    invariant(this.config.queueName, "Queue name cannot be empty");
-
-    return formatMessageQueueKey(this.config.queueName);
   }
 
   private appendPrefixTo(key: string) {
@@ -54,13 +51,17 @@ export class Queue extends EventEmitter {
   private async initializeConsumerGroup() {
     invariant(
       this.config.consumerGroupName,
-      "consumerGroupName cannot be empty"
+      "Consumer group name cannot be empty when initializing consumer group"
+    );
+    invariant(
+      this.config.queueName,
+      "Queue name cannot be empty when initializing consumer group"
     );
 
     try {
       await this.config.redis.xgroup(
         "CREATE",
-        this.createKey(),
+        this.config.queueName,
         this.config.consumerGroupName,
         "$",
         "MKSTREAM"
@@ -82,7 +83,8 @@ export class Queue extends EventEmitter {
         messageBody: JSON.stringify(payload),
       }).flat() as string[];
 
-      const streamKey = this.createKey();
+      const streamKey = this.config.queueName;
+      invariant(streamKey, "Queue name cannot be empty when sending a message");
 
       const _sendMessage = () =>
         redis.xadd(streamKey, "*", ...flattenedPayload);
@@ -118,7 +120,12 @@ export class Queue extends EventEmitter {
     const receiveAndProcessMessage = async () => {
       invariant(
         this.config.consumerGroupName,
-        "consumerGroupName cannot be empty"
+        "Consumer group name cannot be empty when receiving a message"
+      );
+
+      invariant(
+        this.config.queueName,
+        "Queue name cannot be empty when receving a message"
       );
 
       try {
@@ -131,7 +138,7 @@ export class Queue extends EventEmitter {
           "BLOCK",
           blockTimeMs,
           "STREAMS",
-          this.createKey(),
+          this.config.queueName,
           ">"
         );
         const parsedMessage = parseRedisStreamMessage<StreamResult>(xreadRes);
@@ -167,11 +174,16 @@ export class Queue extends EventEmitter {
     const attemptAck = async () => {
       invariant(
         this.config.consumerGroupName,
-        "consumerGroupName cannot be empty"
+        "Consumer group name cannot be empty when verifying a message"
+      );
+
+      invariant(
+        this.config.queueName,
+        "Queue name cannot be empty when verifying a message"
       );
 
       await redis.xack(
-        this.createKey(),
+        this.config.queueName,
         this.config.consumerGroupName,
         resultObject.streamId
       );
