@@ -127,7 +127,7 @@ export class Queue extends EventEmitter {
 
   async receiveMessage<StreamResult>(blockTimeMs = 0) {
     const receiveAndProcessMessage = async () => {
-      const { redis, concurrencyLimit } = this.config;
+      const { redis, concurrencyLimit, autoVerify } = this.config;
 
       const concurrencyNotSetAndAboveDefaultLimit =
         concurrencyLimit === DEFAULT_CONCURRENCY_LIMIT &&
@@ -152,13 +152,10 @@ export class Queue extends EventEmitter {
       const parsedMessage = parseRedisStreamMessage<StreamResult>(xreadRes);
       if (!parsedMessage) return null;
 
-      const xackRes = await this.verifyMessage<StreamResult>(
-        redis,
-        parsedMessage
-      );
-      if (typeof xackRes === "number" && xackRes > 0) {
-        this.decrementConcurrencyCount();
+      if (autoVerify) {
+        await this.verifyMessage<StreamResult>(parsedMessage.streamId);
       }
+
       return parsedMessage;
     };
 
@@ -216,10 +213,8 @@ export class Queue extends EventEmitter {
     );
   }
 
-  private async verifyMessage<StreamResult>(
-    redis: Redis,
-    resultObject: { streamId: string; body: StreamResult }
-  ) {
+  async verifyMessage<StreamResult>(streamId: string) {
+    const { redis } = this.config;
     const attemptAck = async () => {
       invariant(
         this.config.consumerGroupName,
@@ -231,15 +226,18 @@ export class Queue extends EventEmitter {
         "Queue name cannot be empty when verifying a message"
       );
 
-      return await redis.xack(
+      const xackRes = await redis.xack(
         this.config.queueName,
         this.config.consumerGroupName,
-        resultObject.streamId
+        streamId
       );
+      if (typeof xackRes === "number" && xackRes > 0) {
+        this.decrementConcurrencyCount();
+      }
     };
 
     try {
-      return await retryWithBackoff(attemptAck);
+      await retryWithBackoff(attemptAck);
     } catch (finalError) {
       console.error(
         `Final attempt to acknowledge message failed: ${

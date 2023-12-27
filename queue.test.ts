@@ -155,6 +155,59 @@ describe("Concurrency", () => {
   });
 });
 
+describe("Auto verify", () => {
+  test("should auto verify the message and decrement concurrency counter", async () => {
+    const queue = new Queue({
+      redis: new Redis(),
+      queueName: randomValue(),
+    });
+
+    await queue.sendMessage({
+      dev: randomValue(),
+    });
+
+    await queue.receiveMessage();
+
+    expect(queue.concurrencyCounter).toBe(0);
+  });
+
+  test("should verify manually and decrement the counter", async () => {
+    const queue = new Queue({
+      redis: new Redis(),
+      queueName: randomValue(),
+      autoVerify: false,
+    });
+
+    await queue.sendMessage({
+      dev: randomValue(),
+    });
+
+    const receiveRes = await queue.receiveMessage();
+    if (receiveRes) {
+      const { streamId } = receiveRes;
+      await queue.verifyMessage(streamId);
+    }
+
+    expect(queue.concurrencyCounter).toBe(0);
+  });
+
+  test("should not release concurrency since auto verify is disabled and no verifyMessage present", async () => {
+    const queue = new Queue({
+      redis: new Redis(),
+      queueName: randomValue(),
+      autoVerify: false,
+    });
+
+    await queue.sendMessage({
+      dev: randomValue(),
+    });
+
+    await queue.receiveMessage();
+
+    expect(queue.concurrencyCounter).not.toBe(0);
+  });
+});
+
 // describe("Queue with a single client", () => {
 //   test("should add item to queue", async () => {
 //     const queue = new Queue({ redis });
