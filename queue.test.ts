@@ -1,22 +1,157 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { Redis } from "ioredis";
-import { DEFAULT_QUEUE_NAME, Queue } from "./queue";
-import { delay, formatMessageQueueKey } from "./utils";
+import {
+  DEFAULT_AUTO_VERIFY,
+  DEFAULT_CONCURRENCY_LIMIT,
+  DEFAULT_CONSUMER_GROUP_NAME,
+  DEFAULT_QUEUE_NAME,
+  ERROR_MAP,
+  Queue,
+} from "./queue";
+import { formatMessageQueueKey } from "./utils";
 
-const randomValue = () => crypto.randomUUID();
+const randomValue = () => crypto.randomUUID().slice(0, 8);
 const redis = new Redis();
 const consumerClient = new Redis();
 
-describe("Queue with default and customized name", () => {
+describe("Queue with default and customized queue name", () => {
   test("should return the default queue name", () => {
     const queue = new Queue({ redis });
-    expect(queue.config.queueName).toEqual(DEFAULT_QUEUE_NAME);
+    expect(queue.config.queueName).toEqual(
+      formatMessageQueueKey(DEFAULT_QUEUE_NAME)
+    );
   });
 
   test("should return the customized name", () => {
     const queueName = "cookie-jar";
     const queue = new Queue({ redis, queueName });
-    expect(queue.config.queueName).toEqual(queueName);
+    expect(queue.config.queueName).toEqual(formatMessageQueueKey(queueName));
+  });
+});
+
+describe("Queue with default and customized consumerGroup", () => {
+  test("should return the default customerGroupName", () => {
+    const queue = new Queue({ redis, queueName: randomValue() });
+    expect(queue.config.consumerGroupName).toEqual(DEFAULT_CONSUMER_GROUP_NAME);
+  });
+
+  test("should return the customized customerGroupName", () => {
+    const consumerGroupName = "bigger-cookie-jar";
+    const queue = new Queue({
+      redis,
+      consumerGroupName,
+      queueName: randomValue(),
+    });
+    expect(queue.config.consumerGroupName).toEqual(consumerGroupName);
+  });
+});
+
+describe("Queue with default and customized concurrency limit", () => {
+  test("should return 0 when concurrency is default", () => {
+    const queue = new Queue({ redis, queueName: randomValue() });
+    expect(queue.config.concurrencyLimit).toEqual(DEFAULT_CONCURRENCY_LIMIT);
+  });
+
+  test("should return the customized concurrency limit", () => {
+    const concurrencyLimit = 5;
+    const queue = new Queue({
+      redis,
+      concurrencyLimit,
+      queueName: randomValue(),
+    });
+    expect(queue.config.concurrencyLimit).toEqual(concurrencyLimit);
+  });
+});
+
+describe("Queue with default and customized message verify(ack)", () => {
+  test("should return 0 when concurrency is default", () => {
+    const queue = new Queue({ redis, queueName: randomValue() });
+    expect(queue.config.autoVerify).toEqual(DEFAULT_AUTO_VERIFY);
+  });
+
+  test("should return the customized concurrency limit", () => {
+    const autoVerify = false;
+    const queue = new Queue({ redis, autoVerify, queueName: randomValue() });
+    expect(queue.config.autoVerify).toEqual(autoVerify);
+  });
+});
+
+describe("Concurrency", () => {
+  test("should allow only specified amount of receiveMessages concurrently", async () => {
+    const consumerCount = 4;
+
+    const consumer = new Queue({
+      redis: new Redis(),
+      concurrencyLimit: consumerCount,
+      queueName: randomValue(),
+    });
+
+    for (let i = 0; i < consumerCount; i++) {
+      await consumer.receiveMessage();
+    }
+
+    expect(consumer.concurrencyCounter).toEqual(consumerCount);
+  });
+
+  test("should throw when try to consume more than 5 at the same time", async () => {
+    const throwableTest = async () => {
+      const consumer = new Queue({
+        redis: new Redis(),
+        queueName: randomValue(),
+        concurrencyLimit: 5,
+      });
+
+      for (let i = 0; i < 10; i++) {
+        await consumer.receiveMessage();
+      }
+    };
+
+    expect(throwableTest).toThrow(ERROR_MAP.CONCURRENCY_LIMIT_EXCEEDED);
+  });
+
+  test("should give us 0 since all the consumers are available after successful verify", async () => {
+    const queue = new Queue({
+      redis: new Redis(),
+      queueName: randomValue(),
+      concurrencyLimit: 2,
+    });
+
+    await queue.sendMessage({
+      dev: randomValue(),
+    });
+
+    await queue.sendMessage({
+      dev: randomValue(),
+    });
+
+    await Promise.all([queue.receiveMessage(), queue.receiveMessage()]);
+
+    expect(queue.concurrencyCounter).toEqual(0);
+  });
+
+  test("should throw since default receive messages exceeds default limit: 1", async () => {
+    const throwableTest = async () => {
+      const queue = new Queue({
+        redis: new Redis(),
+        queueName: randomValue(),
+      });
+
+      await queue.sendMessage({
+        dev: randomValue(),
+      });
+      await queue.sendMessage({
+        dev: randomValue(),
+      });
+
+      await Promise.all([
+        queue.receiveMessage(),
+        queue.receiveMessage(),
+        queue.receiveMessage(),
+        queue.receiveMessage(),
+      ]);
+    };
+
+    expect(throwableTest).toThrow(ERROR_MAP.CONCURRENCY_DEFAULT_LIMIT_EXCEEDED);
   });
 });
 

@@ -13,6 +13,15 @@ export const DEFAULT_QUEUE_NAME = "Queue";
 export const DEFAULT_CONCURRENCY_LIMIT = 0;
 export const DEFAULT_AUTO_VERIFY = true;
 
+export const MAX_CONCURRENCY_LIMIT = 5;
+
+export const ERROR_MAP = {
+  CONCURRENCY_LIMIT_EXCEEDED: `Cannot receive more than ${MAX_CONCURRENCY_LIMIT}`,
+  CONCURRENCY_DEFAULT_LIMIT_EXCEEDED: `Cannot receive more than ${
+    DEFAULT_CONCURRENCY_LIMIT + 1
+  }, due to default limit not being set`,
+};
+
 export type QueueConfig = {
   redis: Redis;
   queueName?: string;
@@ -24,6 +33,8 @@ export type QueueConfig = {
 
 export class Queue extends EventEmitter {
   config: QueueConfig;
+  concurrencyCounter = DEFAULT_CONCURRENCY_LIMIT;
+
   private messageTimeouts = new Set<NodeJS.Timer>();
 
   constructor(config: QueueConfig) {
@@ -114,45 +125,41 @@ export class Queue extends EventEmitter {
     }
   }
 
-  async receiveMessage<StreamResult>(consumerName: string, blockTimeMs = 0) {
-    const { redis } = this.config;
-
+  async receiveMessage<StreamResult>(blockTimeMs = 0) {
     const receiveAndProcessMessage = async () => {
-      invariant(
-        this.config.consumerGroupName,
-        "Consumer group name cannot be empty when receiving a message"
-      );
+      const { redis, concurrencyLimit } = this.config;
 
-      invariant(
-        this.config.queueName,
-        "Queue name cannot be empty when receving a message"
-      );
+      const concurrencyNotSetAndAboveDefaultLimit =
+        concurrencyLimit === DEFAULT_CONCURRENCY_LIMIT &&
+        this.concurrencyCounter >= DEFAULT_CONCURRENCY_LIMIT + 1;
+      const concurrencyAboveTheMaxLimit =
+        this.concurrencyCounter > MAX_CONCURRENCY_LIMIT;
 
-      try {
-        const xreadRes = await redis.xreadgroup(
-          "GROUP",
-          this.config.consumerGroupName,
-          consumerName,
-          "COUNT",
-          1,
-          "BLOCK",
-          blockTimeMs,
-          "STREAMS",
-          this.config.queueName,
-          ">"
-        );
-        const parsedMessage = parseRedisStreamMessage<StreamResult>(xreadRes);
-        if (!parsedMessage) return null;
-
-        await this.verifyMessage<StreamResult>(redis, parsedMessage);
-        return parsedMessage;
-      } catch (error) {
-        this.emit(
-          "receiveError",
-          `Error receiving message: ${(error as Error).message}`
-        );
-        throw error;
+      if (concurrencyNotSetAndAboveDefaultLimit) {
+        throw new Error(ERROR_MAP.CONCURRENCY_DEFAULT_LIMIT_EXCEEDED);
       }
+
+      this.incrementConcurrencyCount();
+
+      if (concurrencyAboveTheMaxLimit) {
+        throw new Error(ERROR_MAP.CONCURRENCY_LIMIT_EXCEEDED);
+      }
+
+      const xreadRes =
+        blockTimeMs > 0
+          ? await this.receiveBlockingMessage(blockTimeMs)
+          : await this.receiveNonBlockingMessage();
+      const parsedMessage = parseRedisStreamMessage<StreamResult>(xreadRes);
+      if (!parsedMessage) return null;
+
+      const xackRes = await this.verifyMessage<StreamResult>(
+        redis,
+        parsedMessage
+      );
+      if (typeof xackRes === "number" && xackRes > 0) {
+        this.decrementConcurrencyCount();
+      }
+      return parsedMessage;
     };
 
     try {
@@ -165,6 +172,48 @@ export class Queue extends EventEmitter {
       );
       throw finalError;
     }
+  }
+
+  private async receiveBlockingMessage(blockTimeMs: number) {
+    const { redis, consumerGroupName, queueName } = this.config;
+    invariant(
+      consumerGroupName,
+      "Consumer group name cannot be empty when receiving a message"
+    );
+    invariant(queueName, "Queue name cannot be empty when receving a message");
+
+    return redis.xreadgroup(
+      "GROUP",
+      consumerGroupName,
+      this.generateRandomConsumerName(),
+      "COUNT",
+      1,
+      "BLOCK",
+      blockTimeMs,
+      "STREAMS",
+      queueName,
+      ">"
+    );
+  }
+
+  private async receiveNonBlockingMessage() {
+    const { redis, consumerGroupName, queueName } = this.config;
+    invariant(
+      consumerGroupName,
+      "Consumer group name cannot be empty when receiving a message"
+    );
+    invariant(queueName, "Queue name cannot be empty when receving a message");
+
+    return redis.xreadgroup(
+      "GROUP",
+      consumerGroupName,
+      this.generateRandomConsumerName(),
+      "COUNT",
+      1,
+      "STREAMS",
+      queueName,
+      ">"
+    );
   }
 
   private async verifyMessage<StreamResult>(
@@ -182,7 +231,7 @@ export class Queue extends EventEmitter {
         "Queue name cannot be empty when verifying a message"
       );
 
-      await redis.xack(
+      return await redis.xack(
         this.config.queueName,
         this.config.consumerGroupName,
         resultObject.streamId
@@ -190,7 +239,7 @@ export class Queue extends EventEmitter {
     };
 
     try {
-      await retryWithBackoff(attemptAck);
+      return await retryWithBackoff(attemptAck);
     } catch (finalError) {
       console.error(
         `Final attempt to acknowledge message failed: ${
@@ -213,5 +262,20 @@ export class Queue extends EventEmitter {
     this.messageTimeouts.forEach((timeoutId) => clearTimeout(timeoutId));
     // Add any other cleanup logic here
     process.exit(0);
+  }
+
+  private generateRandomConsumerName = () => {
+    if (this.concurrencyCounter > MAX_CONCURRENCY_LIMIT)
+      throw new Error(ERROR_MAP.CONCURRENCY_LIMIT_EXCEEDED);
+    const randomUUID = crypto.randomUUID();
+    return this.appendPrefixTo(randomUUID);
+  };
+
+  private incrementConcurrencyCount() {
+    this.concurrencyCounter++;
+  }
+
+  private decrementConcurrencyCount() {
+    this.concurrencyCounter--;
   }
 }
