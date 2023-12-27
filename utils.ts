@@ -1,4 +1,4 @@
-const MQ_PREFIX = "UpstashMQ";
+export const MQ_PREFIX = "UpstashMQ";
 
 export const formatMessageQueueKey = (queueName: string) => {
   return `${MQ_PREFIX}:${queueName}`;
@@ -78,3 +78,12 @@ export const parseRedisStreamMessage = <StreamResult>(
     body: messageBody,
   };
 };
+
+export function invariant<T>(
+  data: T,
+  message: string
+): asserts data is NonNullable<T> {
+  if (!data) {
+    throw new Error(message);
+  }
+}

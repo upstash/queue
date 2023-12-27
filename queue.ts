@@ -2,18 +2,22 @@ import { EventEmitter } from "events";
 import Redis from "ioredis";
 import {
   formatMessageQueueKey,
+  invariant,
   parseRedisStreamMessage,
   retryWithBackoff,
 } from "./utils";
 
-//Better visibilty control instead of relying only for pending state
-//Move failed acked items to DLQ,then delete it from current stream
-
-const CONSUMER_GROUP_NAME = "messages";
+export const DEFAULT_CONSUMER_GROUP_NAME = "MESSAGES";
+export const DEFAULT_CONSUMER_PREFIX = "CONSUMER";
+export const DEFAULT_QUEUE_NAME = "QUEUE";
 
 export type QueueConfig = {
   redis: Redis;
-  queueName: string;
+  queueName?: string;
+  concurrencyLimit?: number;
+  autoVerify?: boolean;
+  consumerGroupName?: string;
+  consumerNamePrefix?: string;
 };
 
 export class Queue extends EventEmitter {
@@ -24,22 +28,40 @@ export class Queue extends EventEmitter {
     super();
     this.config = {
       redis: config.redis,
-      queueName: config.queueName,
+
+      concurrencyLimit: config.concurrencyLimit ?? 0,
+      autoVerify: config.autoVerify ?? true,
+      consumerGroupName: config.consumerGroupName
+        ? this.appendPrefixTo(config.consumerGroupName)
+        : this.appendPrefixTo(DEFAULT_CONSUMER_GROUP_NAME),
+      consumerNamePrefix: config.consumerNamePrefix ?? DEFAULT_CONSUMER_PREFIX,
+      queueName: config.queueName ?? DEFAULT_QUEUE_NAME,
     };
     this.initializeConsumerGroup();
     this.setupShutdownHandler();
   }
 
-  private createStreamKey() {
+  private createKey() {
+    invariant(this.config.queueName, "Queue name cannot be empty");
+
     return formatMessageQueueKey(this.config.queueName);
   }
 
+  private appendPrefixTo(key: string) {
+    return formatMessageQueueKey(key);
+  }
+
   private async initializeConsumerGroup() {
+    invariant(
+      this.config.consumerGroupName,
+      "consumerGroupName cannot be empty"
+    );
+
     try {
       await this.config.redis.xgroup(
         "CREATE",
-        this.createStreamKey(),
-        CONSUMER_GROUP_NAME,
+        this.createKey(),
+        this.config.consumerGroupName,
         "$",
         "MKSTREAM"
       );
@@ -50,7 +72,6 @@ export class Queue extends EventEmitter {
       ) {
         this.emit("error", error);
       }
-      // If the group already exists, it's not necessarily an error in this context.
     }
   }
 
@@ -61,7 +82,7 @@ export class Queue extends EventEmitter {
         messageBody: JSON.stringify(payload),
       }).flat() as string[];
 
-      const streamKey = this.createStreamKey();
+      const streamKey = this.createKey();
 
       const _sendMessage = () =>
         redis.xadd(streamKey, "*", ...flattenedPayload);
@@ -95,17 +116,22 @@ export class Queue extends EventEmitter {
     const { redis } = this.config;
 
     const receiveAndProcessMessage = async () => {
+      invariant(
+        this.config.consumerGroupName,
+        "consumerGroupName cannot be empty"
+      );
+
       try {
         const xreadRes = await redis.xreadgroup(
           "GROUP",
-          CONSUMER_GROUP_NAME,
+          this.config.consumerGroupName,
           consumerName,
           "COUNT",
           1,
           "BLOCK",
           blockTimeMs,
           "STREAMS",
-          this.createStreamKey(),
+          this.createKey(),
           ">"
         );
         const parsedMessage = parseRedisStreamMessage<StreamResult>(xreadRes);
@@ -139,9 +165,14 @@ export class Queue extends EventEmitter {
     resultObject: { streamId: string; body: StreamResult }
   ) {
     const attemptAck = async () => {
+      invariant(
+        this.config.consumerGroupName,
+        "consumerGroupName cannot be empty"
+      );
+
       await redis.xack(
-        this.createStreamKey(),
-        CONSUMER_GROUP_NAME,
+        this.createKey(),
+        this.config.consumerGroupName,
         resultObject.streamId
       );
     };
