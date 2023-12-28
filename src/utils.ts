@@ -45,17 +45,32 @@ export const retryWithBackoff = async <T>(
   return attempt();
 };
 
-type RedisStreamMessage = [string, string];
+export type ParsedStreamMessage<TStreamResult> = {
+  streamId: string;
+  body: TStreamResult;
+} | null;
 
-type RedisStreamEntry = [string, RedisStreamMessage[]];
+type StartId = string;
+type GroupName = string;
+type StreamId = string;
+type MessageBody = [string, string];
 
-type RedisStreamArray = RedisStreamEntry[];
+type XreadGroupStreamArray = [[GroupName, Array<[StreamId, MessageBody]>]];
 
-export const parseRedisStreamMessage = <StreamResult>(
+/**
+ * Parses the result of a Redis XREADGROUP response, extracting relevant information.
+ *
+ * @param {unknown[]} streamArray - The array representing the Redis XREADGROUP response.
+ * Example structure: [["UpstashMQ:1251e0e7",[["1703755686316-0", ["messageBody", '{"hello":"world"}']]]]]
+ *
+ * @returns {ParsedStreamMessage<TStreamResult> | null} - Parsed result containing the stream ID
+ * and parsed message body, or null if parsing fails.
+ */
+export const parseXreadGroupResponse = <TStreamResult>(
   streamArray: unknown[]
-): { streamId: string; body: StreamResult } | null => {
-  const typedStream = streamArray as RedisStreamArray;
-  // Safely access nested elements
+): ParsedStreamMessage<TStreamResult> => {
+  const typedStream = streamArray as XreadGroupStreamArray;
+
   const streamData = typedStream?.[0];
   const firstMessage = streamData?.[1]?.[0];
   const streamId = firstMessage?.[0];
@@ -79,6 +94,54 @@ export const parseRedisStreamMessage = <StreamResult>(
   };
 };
 
+type XclaimAutoRedisStreamArray = [StartId, Array<[StreamId, MessageBody]>];
+
+/**
+ * Parses the result of a Redis XCLAIM response with automatic stream creation,
+ * extracting relevant information.
+ *
+ * @param {unknown[]} streamArray - The array representing the Redis XCLAIM response.
+ * Example structure: ["0-0",[["1703754659687-0", ["messageBody", '{"hello":"world"}']]],[]]
+ *
+ * @returns {ParsedStreamMessage<TStreamResult> | null} - Parsed result containing the stream ID
+ * and parsed message body, or null if parsing fails.
+ */
+export const parseXclaimAutoResponse = <TStreamResult>(
+  streamArray: unknown[]
+): ParsedStreamMessage<TStreamResult> => {
+  const typedStream = streamArray as XclaimAutoRedisStreamArray;
+
+  const firstMessage = typedStream?.[1]?.[0];
+  const streamId = firstMessage?.[0];
+  const messageBodyString = firstMessage?.[1]?.[1];
+
+  if (!streamId || !messageBodyString) {
+    return null;
+  }
+
+  let messageBody;
+  try {
+    messageBody = JSON.parse(messageBodyString);
+  } catch (e) {
+    console.error("Failed to parse message body:", e);
+    return null;
+  }
+
+  return {
+    streamId,
+    body: messageBody,
+  };
+};
+
+/**
+ * Asserts that the provided data is non-null and non-undefined.
+ * If the assertion fails, an error with the specified message is thrown.
+ *
+ * @param {T} data - The data to assert as non-nullable.
+ * @param {string} message - The error message to throw if the assertion fails.
+ * @throws {Error} Throws an error if the assertion fails.
+ * @returns {asserts data is NonNullable<T>} - Type assertion indicating that the data is non-nullable.
+ */
 export function invariant<T>(
   data: T,
   message: string

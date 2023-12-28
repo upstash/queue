@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, test } from "bun:test";
 import { Redis } from "ioredis";
 
 import {
@@ -9,12 +9,16 @@ import {
   ERROR_MAP,
 } from "./constants";
 import { Queue } from "./queue";
-import { formatMessageQueueKey } from "./utils";
+import { delay, formatMessageQueueKey } from "./utils";
 
 const randomValue = () => crypto.randomUUID().slice(0, 8);
 const redis = new Redis();
 
-describe("Queue name", () => {
+afterAll(async () => {
+  await redis.flushdb();
+});
+
+describe("Queue name default option", () => {
   test("should return the default queue name", () => {
     const queue = new Queue({ redis });
     expect(queue.config.queueName).toEqual(
@@ -29,7 +33,7 @@ describe("Queue name", () => {
   });
 });
 
-describe("Consumer group name", () => {
+describe("Consumer group name default option", () => {
   test("should return the default customerGroupName", () => {
     const queue = new Queue({ redis, queueName: randomValue() });
     expect(queue.config.consumerGroupName).toEqual(DEFAULT_CONSUMER_GROUP_NAME);
@@ -94,7 +98,9 @@ describe("Concurrency", () => {
   });
 
   test("should throw when try to consume more than 5 at the same time", async () => {
-    const throwableTest = async () => {
+    let errorMessage = "";
+    let iterationCount = 0;
+    try {
       const consumer = new Queue({
         redis: new Redis(),
         queueName: randomValue(),
@@ -103,10 +109,13 @@ describe("Concurrency", () => {
 
       for (let i = 0; i < 10; i++) {
         await consumer.receiveMessage();
+        iterationCount++;
       }
-    };
-
-    expect(throwableTest).toThrow(ERROR_MAP.CONCURRENCY_LIMIT_EXCEEDED);
+    } catch (error) {
+      errorMessage = (error as Error).message;
+    }
+    expect(iterationCount).toBe(5);
+    expect(errorMessage).toEqual(ERROR_MAP.CONCURRENCY_LIMIT_EXCEEDED);
   });
 
   test("should give us 0 since all the consumers are available after successful verify", async () => {
@@ -130,7 +139,8 @@ describe("Concurrency", () => {
   });
 
   test("should throw since default receive messages exceeds default limit: 1", async () => {
-    const throwableTest = async () => {
+    let errorMessage = "";
+    try {
       const queue = new Queue({
         redis: new Redis(),
         queueName: randomValue(),
@@ -149,9 +159,11 @@ describe("Concurrency", () => {
         queue.receiveMessage(),
         queue.receiveMessage(),
       ]);
-    };
+    } catch (error) {
+      errorMessage = (error as Error).message;
+    }
 
-    expect(throwableTest).toThrow(ERROR_MAP.CONCURRENCY_DEFAULT_LIMIT_EXCEEDED);
+    expect(errorMessage).toEqual(ERROR_MAP.CONCURRENCY_DEFAULT_LIMIT_EXCEEDED);
   });
 });
 
@@ -207,6 +219,68 @@ describe("Auto verify", () => {
     expect(queue.concurrencyCounter).not.toBe(0);
   });
 });
+
+describe("Autoclaim orphans", () => {
+  test(
+    "should left nothing in pending list",
+    async () => {
+      const queue = new Queue({
+        redis,
+        autoVerify: false,
+        queueName: randomValue(),
+        concurrencyLimit: 2,
+        visibilityTimeout: 10000,
+      });
+
+      await queue.sendMessage({ hello: "world" });
+      await queue.receiveMessage<{ hello: "world" }>();
+      await delay(10000);
+      const ackedReceive = await queue.receiveMessage<{ hello: "world" }>();
+      queue.verifyMessage(ackedReceive?.streamId!);
+
+      const xpendingRes = await queue.config.redis.xpending(
+        queue.config.queueName!,
+        queue.config.consumerGroupName!,
+        "-",
+        "+",
+        1
+      );
+
+      expect(xpendingRes).toBeEmpty();
+    },
+    { timeout: 20000 }
+  );
+
+  test(
+    "should return at least 1 pending since they are not claimed",
+    async () => {
+      const queue = new Queue({
+        redis,
+        autoVerify: false,
+        queueName: randomValue(),
+        concurrencyLimit: 2,
+      });
+
+      await queue.sendMessage({ hello: "world" });
+      await queue.receiveMessage<{ hello: "world" }>();
+      await delay(10000);
+      await queue.receiveMessage<{ hello: "world" }>();
+
+      const xpendingRes = await queue.config.redis.xpending(
+        queue.config.queueName!,
+        queue.config.consumerGroupName!,
+        "-",
+        "+",
+        1
+      );
+
+      expect(xpendingRes).not.toBeEmpty();
+    },
+    { timeout: 20000 }
+  );
+});
+
+/////------------#####-------
 
 // describe("Queue with a single client", () => {
 //   test("should add item to queue", async () => {

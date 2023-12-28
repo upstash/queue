@@ -1,26 +1,35 @@
-import { expect, test } from "bun:test";
-import { retryWithBackoff } from "./utils";
+import { describe, expect, test } from "bun:test";
+import { parseXclaimAutoResponse, parseXreadGroupResponse } from "./utils";
 
-test(
-  "should test exponential backoff",
-  async () => {
-    let retryCount = 0;
+describe("Response Parsers", () => {
+  test("should parse XCLAIMAUTO response", async () => {
+    const input = [
+      "0-0",
+      [["1703754659687-0", ["messageBody", '{"hello":"world"}']]],
+      [],
+    ];
 
-    async function fetchData() {
-      // Simulating an async operation (e.g., fetching data from an API)
-      return new Promise((resolve, reject) => {
-        // Mocking a fetch call that might fail
-        if (Math.random() > 0.5) {
-          resolve("Data fetched successfully");
-        } else {
-          retryCount++;
-          reject(new Error("Failed to fetch data"));
-        }
-      });
-    }
+    expect(parseXclaimAutoResponse(input)).toEqual({
+      streamId: "1703754659687-0",
+      body: {
+        hello: "world",
+      },
+    });
+  });
 
-    await retryWithBackoff(fetchData, 5, 1000);
-    expect(retryCount).toBeGreaterThanOrEqual(1);
-  },
-  { timeout: 10000 }
-);
+  test("should parse XREADGROUP response", async () => {
+    const input = [
+      [
+        "UpstashMQ:1251e0e7",
+        [["1703755686316-0", ["messageBody", '{"hello":"world"}']]],
+      ],
+    ];
+
+    expect(parseXreadGroupResponse(input)).toEqual({
+      streamId: "1703755686316-0",
+      body: {
+        hello: "world",
+      },
+    });
+  });
+});
