@@ -67,13 +67,17 @@ export class Queue {
       "Queue name cannot be empty when initializing consumer group"
     );
 
-    await this.config.redis.xgroup(
-      "CREATE",
-      this.config.queueName,
-      this.config.consumerGroupName,
-      "$",
-      "MKSTREAM"
-    );
+    try {
+      await this.config.redis.xgroup(
+        "CREATE",
+        this.config.queueName,
+        this.config.consumerGroupName,
+        "$",
+        "MKSTREAM"
+      );
+    } catch (error) {
+      return null;
+    }
   }
 
   async sendMessage<T extends {}>(payload: T, delayInSeconds: number = 0) {
@@ -114,7 +118,6 @@ export class Queue {
 
     const xclaimParsedMessage =
       await this.claimStuckPendingMessageAndVerify<TStreamResult>();
-
     if (xclaimParsedMessage) {
       return xclaimParsedMessage;
     }
@@ -143,9 +146,9 @@ export class Queue {
     }
   }
 
-  private async claimStuckPendingMessageAndVerify<
-    TStreamResult
-  >(): Promise<ParsedStreamMessage<TStreamResult> | null> {
+  private async claimStuckPendingMessageAndVerify<TStreamResult>(): Promise<
+    ParsedStreamMessage<TStreamResult>
+  > {
     const { autoVerify } = this.config;
     const consumerName = this.generateRandomConsumerName();
 
@@ -157,43 +160,34 @@ export class Queue {
       await this.verifyMessage(xclaimParsedMessage.streamId);
     }
 
+    if (xclaimParsedMessage == null) {
+      await this.removeEmptyConsumer(consumerName);
+    }
+
     return xclaimParsedMessage;
+  }
+
+  private async removeEmptyConsumer(consumerName: string) {
+    const { redis, consumerGroupName, queueName } = this.config;
+    invariant(
+      consumerGroupName,
+      "Consumer group name cannot be empty when removing a consumer"
+    );
+    invariant(queueName, "Queue name cannot be empty when removing a consumer");
+
+    await redis.xgroup(
+      "DELCONSUMER",
+      queueName,
+      consumerGroupName,
+      consumerName
+    );
   }
 
   private async claimAndParseMessage<TStreamResult>(
     consumerName: string
-  ): Promise<ParsedStreamMessage<TStreamResult> | null> {
+  ): Promise<ParsedStreamMessage<TStreamResult>> {
     const xclaimRes = await this.autoClaim(consumerName);
     return parseXclaimAutoResponse<TStreamResult>(xclaimRes);
-  }
-
-  private async readAndVerifyPendingMessage<TStreamResult>(
-    blockTimeMs: number
-  ): Promise<ParsedStreamMessage<TStreamResult> | null> {
-    const { autoVerify } = this.config;
-
-    const parsedXreadMessage = await this.readAndParseMessage<TStreamResult>(
-      blockTimeMs
-    );
-
-    if (parsedXreadMessage && autoVerify) {
-      await this.verifyMessage(parsedXreadMessage.streamId);
-    }
-
-    return parsedXreadMessage;
-  }
-
-  async readAndParseMessage<StreamResult>(
-    blockTimeMs: number
-  ): Promise<ParsedStreamMessage<StreamResult> | null> {
-    const consumerName = this.generateRandomConsumerName();
-
-    const xreadRes =
-      blockTimeMs > 0
-        ? await this.receiveBlockingMessage(blockTimeMs)
-        : await this.receiveNonBlockingMessage(consumerName);
-
-    return parseXreadGroupResponse<StreamResult>(xreadRes);
   }
 
   private async autoClaim(consumerName: string) {
@@ -220,14 +214,45 @@ export class Queue {
     );
   }
 
-  private async receiveBlockingMessage(blockTimeMs: number) {
+  private async readAndVerifyPendingMessage<TStreamResult>(
+    blockTimeMs: number
+  ): Promise<ParsedStreamMessage<TStreamResult>> {
+    const { autoVerify } = this.config;
+
+    const parsedXreadMessage = await this.readAndParseMessage<TStreamResult>(
+      blockTimeMs
+    );
+
+    if (parsedXreadMessage && autoVerify) {
+      await this.verifyMessage(parsedXreadMessage.streamId);
+    }
+
+    return parsedXreadMessage;
+  }
+
+  async readAndParseMessage<StreamResult>(
+    blockTimeMs: number
+  ): Promise<ParsedStreamMessage<StreamResult> | null> {
+    const consumerName = this.generateRandomConsumerName();
+
+    const xreadRes =
+      blockTimeMs > 0
+        ? await this.receiveBlockingMessage(blockTimeMs, consumerName)
+        : await this.receiveNonBlockingMessage(consumerName);
+
+    return parseXreadGroupResponse<StreamResult>(xreadRes);
+  }
+
+  private async receiveBlockingMessage(
+    blockTimeMs: number,
+    consumerName: string
+  ) {
     const { redis, consumerGroupName, queueName } = this.config;
     invariant(
       consumerGroupName,
       "Consumer group name cannot be empty when receiving a message"
     );
     invariant(queueName, "Queue name cannot be empty when receving a message");
-    const consumerName = this.generateRandomConsumerName();
 
     return redis.xreadgroup(
       "GROUP",
