@@ -10,41 +10,6 @@ export const delay = (duration: number): Promise<void> => {
   });
 };
 
-/**
- * Generic retry function with exponential backoff.
- *
- * @param {Function} fn - The function to retry. Must return a Promise.
- * @param {number} maxAttempts - Maximum number of attempts.
- * @param {number} delay - Initial delay in milliseconds.
- * @returns {Promise<any>} - The result of the function `fn`.
- */
-export const retryWithBackoff = async <T>(
-  fn: () => Promise<T>,
-  maxAttempts: number = 3,
-  delay: number = 1000
-): Promise<T> => {
-  let attempts = 0;
-
-  async function attempt() {
-    try {
-      return await fn();
-    } catch (error) {
-      attempts++;
-      if (attempts >= maxAttempts) {
-        throw error;
-      }
-      console.log(
-        `Retrying in ${delay}ms... Attempt ${attempts}/${maxAttempts}`
-      );
-      await new Promise((resolve) => setTimeout(resolve, delay));
-      delay *= 2; // Exponential increase of delay
-      return attempt();
-    }
-  }
-
-  return attempt();
-};
-
 export type ParsedStreamMessage<TStreamResult> = {
   streamId: string;
   body: TStreamResult;
@@ -142,10 +107,7 @@ export const parseXclaimAutoResponse = <TStreamResult>(
  * @throws {Error} Throws an error if the assertion fails.
  * @returns {asserts data is NonNullable<T>} - Type assertion indicating that the data is non-nullable.
  */
-export function invariant<T>(
-  data: T,
-  message: string
-): asserts data is NonNullable<T> {
+export function invariant<T>(data: T, message: string): asserts data is NonNullable<T> {
   if (!data) {
     throw new Error(message);
   }

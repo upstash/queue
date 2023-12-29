@@ -24,9 +24,7 @@ describe("Queue", () => {
   describe("Queue name default option", () => {
     test("should return the default queue name", () => {
       const queue = new Queue({ redis });
-      expect(queue.config.queueName).toEqual(
-        formatMessageQueueKey(DEFAULT_QUEUE_NAME)
-      );
+      expect(queue.config.queueName).toEqual(formatMessageQueueKey(DEFAULT_QUEUE_NAME));
     });
 
     test("should return the customized name", () => {
@@ -39,9 +37,7 @@ describe("Queue", () => {
   describe("Consumer group name default option", () => {
     test("should return the default customerGroupName", () => {
       const queue = new Queue({ redis, queueName: randomValue() });
-      expect(queue.config.consumerGroupName).toEqual(
-        DEFAULT_CONSUMER_GROUP_NAME
-      );
+      expect(queue.config.consumerGroupName).toEqual(DEFAULT_CONSUMER_GROUP_NAME);
     });
 
     test("should return the customized customerGroupName", () => {
@@ -168,9 +164,7 @@ describe("Queue", () => {
         errorMessage = (error as Error).message;
       }
 
-      expect(errorMessage).toEqual(
-        ERROR_MAP.CONCURRENCY_DEFAULT_LIMIT_EXCEEDED
-      );
+      expect(errorMessage).toEqual(ERROR_MAP.CONCURRENCY_DEFAULT_LIMIT_EXCEEDED);
     });
   });
 
@@ -323,13 +317,7 @@ describe("Queue", () => {
         );
 
         await delay(5000);
-        const res = await redis.xrevrange(
-          formatMessageQueueKey("app-logs"),
-          "+",
-          "-",
-          "COUNT",
-          1
-        );
+        const res = await redis.xrevrange(formatMessageQueueKey("app-logs"), "+", "-", "COUNT", 1);
         await redis.xdel(formatMessageQueueKey("app-logs"), res[0][0]);
         expect(res[0][1]).toEqual(["messageBody", `{"dev":"${fakeValue}"}`]);
       },
@@ -367,9 +355,9 @@ describe("Queue", () => {
     const messageCount = 10;
     const consumerCount = 5;
     let producer: Queue;
-    let consumers: Queue[] = [];
-    let messagesSent = new Set();
-    let messagesReceived = new Map();
+    const consumers: Queue[] = [];
+    const messagesSent = new Set();
+    const messagesReceived = new Map();
 
     beforeAll(() => {
       // Initialize Redis and Queue for the producer
@@ -398,10 +386,11 @@ describe("Queue", () => {
 
         // Start consuming messages
         const consumePromises = consumers.map((consumer, index) => {
+          // biome-ignore lint/suspicious/noAsyncPromiseExecutor: <explanation>
           return new Promise<void>(async (resolve) => {
             for (let i = 0; i < messageCount / consumerCount; i++) {
               const res = await consumer.receiveMessage<{ message: string }>();
-              if (res && res.body.message) {
+              if (res?.body.message) {
                 const message = res.body.message;
                 if (!messagesReceived.has(message)) {
                   messagesReceived.set(message, index);
@@ -416,14 +405,13 @@ describe("Queue", () => {
 
         // Assertions
         expect(messagesReceived.size).toBe(messageCount);
+        // biome-ignore lint/complexity/noForEach: <explanation>
         messagesSent.forEach((message) => {
           expect(messagesReceived.has(message)).toBe(true);
         });
 
         // Ensure no message was processed by more than one consumer
-        expect(new Set(messagesReceived.values()).size).toBeLessThanOrEqual(
-          consumerCount
-        );
+        expect(new Set(messagesReceived.values()).size).toBeLessThanOrEqual(consumerCount);
       },
       { timeout: 15 * 1000 }
     );

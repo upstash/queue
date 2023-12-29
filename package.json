@@ -3,10 +3,17 @@
   "module": "index.ts",
   "type": "module",
   "devDependencies": {
-    "bun-types": "latest"
+    "@biomejs/biome": "^1.4.1",
+    "bun-types": "latest",
+    "husky": "^8.0.3"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"
+  },
+  "scripts": {
+    "test": "bun test src --coverage",
+    "fmt": "bunx biome check --apply ./src",
+    "prepare": "husky install"
   },
   "dependencies": {
     "ioredis": "^5.3.2"
