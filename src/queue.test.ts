@@ -319,7 +319,7 @@ describe("Queue", () => {
           {
             dev: fakeValue,
           },
-          2
+          2000
         );
 
         await delay(5000);

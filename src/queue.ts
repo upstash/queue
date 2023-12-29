@@ -20,11 +20,30 @@ import {
 
 export type QueueConfig = {
   redis: Redis;
+  /**
+   * Queue name for the redis stream
+   * @default "UpstashMQ:Queue"
+   */
   queueName?: string;
+  /**
+   * The maximum number of concurrent message processing allowed.
+   * @default 1
+   */
   concurrencyLimit?: 0 | 1 | 2 | 3 | 4 | 5;
+  /**
+   * Auto verifies received messages. If not set message will be picked up by some other consumer after visiblityTimeout.
+   * @default true
+   */
   autoVerify?: boolean;
+  /**
+   * This is the group that holds every other consumer when automatically created.
+   * @default "Messages"
+   */
   consumerGroupName?: string;
-  consumerNamePrefix?: string;
+  /**
+   * Recently sent messages won't be visible to other consumers until this period of time. If no one else acknowledges it it will be picked up by others.
+   * @default "30 seconds"
+   */
   visibilityTimeout?: number;
 };
 
@@ -42,7 +61,6 @@ export class Queue {
       autoVerify: config.autoVerify ?? DEFAULT_AUTO_VERIFY,
       consumerGroupName:
         config.consumerGroupName ?? DEFAULT_CONSUMER_GROUP_NAME,
-      consumerNamePrefix: config.consumerNamePrefix ?? DEFAULT_CONSUMER_PREFIX,
       queueName: config.queueName
         ? this.appendPrefixTo(config.queueName)
         : this.appendPrefixTo(DEFAULT_QUEUE_NAME),
@@ -80,7 +98,7 @@ export class Queue {
     }
   }
 
-  async sendMessage<T extends {}>(payload: T, delayInSeconds: number = 0) {
+  async sendMessage<T extends {}>(payload: T, delayMs: number = 0) {
     const { redis } = this.config;
     try {
       const flattenedPayload = Object.entries({
@@ -93,7 +111,7 @@ export class Queue {
       const _sendMessage = () =>
         redis.xadd(streamKey, "*", ...flattenedPayload);
 
-      if (delayInSeconds > 0) {
+      if (delayMs > 0) {
         let streamIdResult: string | null = null;
 
         const timeoutId = setTimeout(() => {
@@ -101,7 +119,7 @@ export class Queue {
             streamIdResult = res;
             this.messageTimeouts.delete(timeoutId);
           });
-        }, delayInSeconds * 1000);
+        }, delayMs);
         this.messageTimeouts.add(timeoutId);
         return streamIdResult;
       } else {
