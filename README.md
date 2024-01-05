@@ -1,5 +1,27 @@
 # Upstash SQS
 
+[![Tests](https://github.com/upstash/upstash-sqs/actions/workflows/tests.yaml/badge.svg)](https://github.com/upstash/upstash-sqs/actions/workflows/tests.yaml)
+
+A simple, fast, robust stream based message queue for Node.js, backed by Upstash Redis.
+
+- Simple: ~350 LOC, and single dependency.
+- Lightweight: Under ~5kb zipped
+- Fast: maximizes throughput by minimizing Redis and network overhead. Benchmarks well.
+- Robust: designed with concurrency, atomicity, and failure in mind; full code coverage.
+
+```ts
+import { Redis } from "@upstash/redis";
+
+const queue = new Queue({ redis: new Redis() });
+
+await queue.sendMessage({ hello: "world1" });
+
+const message1 = await queue.receiveMessage<{ hello: "world1" }>();
+expect(message1?.body).toEqual({ hello: "world1" });
+```
+
+## Introduction
+
 `@upstash/sqs` is a Node.js library that provides a simple and efficient way to implement a message queue system using Redis streams. It offers features such as message sending, receiving, automatic message verification, and concurrency control. This library is particularly useful for building distributed systems and background job processing.
 
 ## Why Upstash SQS?

@@ -1,5 +1,4 @@
 import crypto from "node:crypto";
-import Redis from "ioredis";
 import {
   DEFAULT_AUTO_VERIFY,
   DEFAULT_CONCURRENCY_LIMIT,
@@ -16,6 +15,8 @@ import {
   parseXclaimAutoResponse,
   parseXreadGroupResponse,
 } from "./utils";
+
+import { Redis } from "@upstash/redis";
 
 export type QueueConfig = {
   redis: Redis;
@@ -49,6 +50,7 @@ export type QueueConfig = {
 export class Queue {
   config: QueueConfig;
   concurrencyCounter = DEFAULT_CONCURRENCY_LIMIT;
+  hasConsumerGroupInitialized = false;
 
   private messageTimeouts = new Set<NodeJS.Timer>();
 
@@ -64,8 +66,6 @@ export class Queue {
         : this.appendPrefixTo(DEFAULT_QUEUE_NAME),
       visibilityTimeout: config.visibilityTimeout ?? DEFAULT_VISIBILITY_TIMEOUT_IN_MS,
     };
-    this.initializeConsumerGroup();
-    this.setupShutdownHandler();
   }
 
   private appendPrefixTo(key: string) {
@@ -73,6 +73,10 @@ export class Queue {
   }
 
   private async initializeConsumerGroup() {
+    if (this.hasConsumerGroupInitialized) {
+      return;
+    }
+
     invariant(
       this.config.consumerGroupName,
       "Consumer group name cannot be empty when initializing consumer group"
@@ -80,13 +84,13 @@ export class Queue {
     invariant(this.config.queueName, "Queue name cannot be empty when initializing consumer group");
 
     try {
-      await this.config.redis.xgroup(
-        "CREATE",
-        this.config.queueName,
-        this.config.consumerGroupName,
-        "$",
-        "MKSTREAM"
-      );
+      await this.config.redis.xgroup(this.config.queueName, {
+        type: "CREATE",
+        group: this.config.consumerGroupName,
+        id: "$",
+        options: { MKSTREAM: true },
+      });
+      this.hasConsumerGroupInitialized = true;
     } catch {
       return null;
     }
@@ -94,15 +98,15 @@ export class Queue {
 
   async sendMessage<T extends {}>(payload: T, delayMs = 0) {
     const { redis } = this.config;
+    await this.initializeConsumerGroup();
     try {
-      const flattenedPayload = Object.entries({
-        messageBody: JSON.stringify(payload),
-      }).flat() as string[];
-
       const streamKey = this.config.queueName;
       invariant(streamKey, "Queue name cannot be empty when sending a message");
 
-      const _sendMessage = () => redis.xadd(streamKey, "*", ...flattenedPayload);
+      const _sendMessage = () =>
+        redis.xadd(streamKey, "*", {
+          messageBody: payload,
+        });
 
       if (delayMs > 0) {
         let streamIdResult: string | null = null;
@@ -125,6 +129,7 @@ export class Queue {
 
   async receiveMessage<TStreamResult>(blockTimeMs = 0) {
     this.checkIfReceiveMessageAllowed();
+    await this.initializeConsumerGroup();
 
     const xclaimParsedMessage = await this.claimStuckPendingMessageAndVerify<TStreamResult>();
     if (xclaimParsedMessage) {
@@ -141,6 +146,7 @@ export class Queue {
     const concurrencyNotSetAndAboveDefaultLimit =
       concurrencyLimit === DEFAULT_CONCURRENCY_LIMIT &&
       this.concurrencyCounter >= DEFAULT_CONCURRENCY_LIMIT + 1;
+
     const concurrencyAboveTheMaxLimit = this.concurrencyCounter > MAX_CONCURRENCY_LIMIT;
 
     if (concurrencyNotSetAndAboveDefaultLimit) {
@@ -173,12 +179,16 @@ export class Queue {
     return xclaimParsedMessage;
   }
 
-  private async removeEmptyConsumer(consumerName: string) {
+  private async removeEmptyConsumer(consumer: string) {
     const { redis, consumerGroupName, queueName } = this.config;
     invariant(consumerGroupName, "Consumer group name cannot be empty when removing a consumer");
     invariant(queueName, "Queue name cannot be empty when removing a consumer");
 
-    await redis.xgroup("DELCONSUMER", queueName, consumerGroupName, consumerName);
+    await redis.xgroup(queueName, {
+      type: "DELCONSUMER",
+      consumer,
+      group: consumerGroupName,
+    });
   }
 
   private async claimAndParseMessage<TStreamResult>(
@@ -199,9 +209,8 @@ export class Queue {
       consumerGroupName,
       consumerName,
       visibilityTimeout,
-      0 - 0,
-      "COUNT",
-      1
+      "0-0",
+      { count: 1 }
     );
   }
 
@@ -237,18 +246,10 @@ export class Queue {
     invariant(consumerGroupName, "Consumer group name cannot be empty when receiving a message");
     invariant(queueName, "Queue name cannot be empty when receving a message");
 
-    return redis.xreadgroup(
-      "GROUP",
-      consumerGroupName,
-      consumerName,
-      "COUNT",
-      1,
-      "BLOCK",
-      blockTimeMs,
-      "STREAMS",
-      queueName,
-      ">"
-    );
+    return redis.xreadgroup(consumerGroupName, consumerName, queueName, ">", {
+      count: 1,
+      blockMS: blockTimeMs,
+    });
   }
 
   private async receiveNonBlockingMessage(consumerName: string) {
@@ -256,20 +257,16 @@ export class Queue {
     invariant(consumerGroupName, "Consumer group name cannot be empty when receiving a message");
     invariant(queueName, "Queue name cannot be empty when receving a message");
 
-    return redis.xreadgroup(
-      "GROUP",
-      consumerGroupName,
-      consumerName,
-      "COUNT",
-      1,
-      "STREAMS",
-      queueName,
-      ">"
-    );
+    const data = await redis.xreadgroup(consumerGroupName, consumerName, queueName, ">", {
+      count: 1,
+    });
+    return data;
   }
 
   async verifyMessage(streamId: string): Promise<"VERIFIED" | "NOT VERIFIED"> {
     const { redis } = this.config;
+    await this.initializeConsumerGroup();
+    this.decrementConcurrencyCount();
 
     try {
       invariant(
@@ -285,7 +282,6 @@ export class Queue {
         streamId
       );
       if (typeof xackRes === "number" && xackRes > 0) {
-        this.decrementConcurrencyCount();
         return "VERIFIED";
       }
       return "NOT VERIFIED";
@@ -295,19 +291,6 @@ export class Queue {
       );
       return "NOT VERIFIED";
     }
-  }
-
-  private setupShutdownHandler() {
-    process.on("SIGINT", this.shutdown.bind(this));
-    process.on("SIGTERM", this.shutdown.bind(this));
-  }
-
-  private async shutdown() {
-    console.log("Shutting down gracefully...");
-    for (const timeoutId of this.messageTimeouts) {
-      clearTimeout(timeoutId);
-    }
-    process.exit(0);
   }
 
   private generateRandomConsumerName = () => {

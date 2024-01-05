@@ -1,21 +1,39 @@
 {
-  "name": "qsqs",
-  "module": "index.ts",
-  "type": "module",
-  "devDependencies": {
-    "@biomejs/biome": "^1.4.1",
-    "bun-types": "latest",
-    "husky": "^8.0.3"
-  },
-  "peerDependencies": {
-    "typescript": "^5.0.0"
+  "name": "@upstash/sqs",
+  "description": "A message queue based on Redis streams, without dependencies.",
+  "module": "./dist/index.mjs",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "version": "0.1.0",
+  "keywords": [
+    "redis",
+    "stream",
+    "upstash",
+    "message",
+    "queue"
+  ],
+  "author": "Oguzhan Olguncu <oguzhan@upstash.com>",
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
+  "bugs": {
+    "url": "https://github.com/upstash/sqs/issues"
   },
   "scripts": {
-    "test": "bun test src --coverage",
+    "test": "bun test src --coverage --bail",
     "fmt": "bunx biome check --apply ./src",
+    "build": "tsup",
     "prepare": "husky install"
   },
   "dependencies": {
-    "ioredis": "^5.3.2"
+    "@upstash/redis": "1.28.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@biomejs/biome": "^1.4.1",
+    "bun-types": "latest",
+    "husky": "^8.0.3",
+    "tsup": "latest"
   }
 }

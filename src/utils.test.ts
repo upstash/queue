@@ -7,9 +7,7 @@ describe("Response Parsers", () => {
 
     expect(parseXclaimAutoResponse(input)).toEqual({
       streamId: "1703754659687-0",
-      body: {
-        hello: "world",
-      },
+      body: '{"hello":"world"}',
     });
   });
 
@@ -20,9 +18,7 @@ describe("Response Parsers", () => {
 
     expect(parseXreadGroupResponse(input)).toEqual({
       streamId: "1703755686316-0",
-      body: {
-        hello: "world",
-      },
+      body: '{"hello":"world"}',
     });
   });
 });

@@ -45,17 +45,9 @@ export const parseXreadGroupResponse = <TStreamResult>(
     return null;
   }
 
-  let messageBody;
-  try {
-    messageBody = JSON.parse(messageBodyString);
-  } catch (e) {
-    console.error("Failed to parse message body:", e);
-    return null;
-  }
-
   return {
     streamId: streamId,
-    body: messageBody,
+    body: messageBodyString as any,
   };
 };
 
@@ -75,7 +67,6 @@ export const parseXclaimAutoResponse = <TStreamResult>(
   streamArray: unknown[]
 ): ParsedStreamMessage<TStreamResult> => {
   const typedStream = streamArray as XclaimAutoRedisStreamArray;
-
   const firstMessage = typedStream?.[1]?.[0];
   const streamId = firstMessage?.[0];
   const messageBodyString = firstMessage?.[1]?.[1];
@@ -84,17 +75,9 @@ export const parseXclaimAutoResponse = <TStreamResult>(
     return null;
   }
 
-  let messageBody;
-  try {
-    messageBody = JSON.parse(messageBodyString);
-  } catch (e) {
-    console.error("Failed to parse message body:", e);
-    return null;
-  }
-
   return {
     streamId,
-    body: messageBody,
+    body: messageBodyString as any,
   };
 };
 

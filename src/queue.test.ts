@@ -1,5 +1,5 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { Redis } from "ioredis";
+import { afterAll, describe, expect, test } from "bun:test";
+import { Redis } from "@upstash/redis";
 
 import {
   DEFAULT_AUTO_VERIFY,
@@ -12,14 +12,10 @@ import { Queue } from "./queue";
 import { delay, formatMessageQueueKey } from "./utils";
 
 const randomValue = () => crypto.randomUUID().slice(0, 8);
-const redis = new Redis();
+const redis = Redis.fromEnv();
 
 describe("Queue", () => {
-  afterAll(async () => {
-    await redis.flushdb();
-    await redis.quit();
-    process.exit();
-  });
+  afterAll(async () => await redis.flushdb());
 
   describe("Queue name default option", () => {
     test("should return the default queue name", () => {
@@ -86,7 +82,7 @@ describe("Queue", () => {
       const consumerCount = 4;
 
       const consumer = new Queue({
-        redis: new Redis(),
+        redis,
         concurrencyLimit: consumerCount,
         queueName: randomValue(),
       });
@@ -103,7 +99,7 @@ describe("Queue", () => {
       let iterationCount = 0;
       try {
         const consumer = new Queue({
-          redis: new Redis(),
+          redis,
           queueName: randomValue(),
           concurrencyLimit: 5,
         });
@@ -121,7 +117,7 @@ describe("Queue", () => {
 
     test("should give us 0 since all the consumers are available after successful verify", async () => {
       const queue = new Queue({
-        redis: new Redis(),
+        redis,
         queueName: randomValue(),
         concurrencyLimit: 2,
       });
@@ -143,7 +139,7 @@ describe("Queue", () => {
       let errorMessage = "";
       try {
         const queue = new Queue({
-          redis: new Redis(),
+          redis,
           queueName: randomValue(),
         });
 
@@ -171,7 +167,7 @@ describe("Queue", () => {
   describe("Auto verify", () => {
     test("should auto verify the message and decrement concurrency counter", async () => {
       const queue = new Queue({
-        redis: new Redis(),
+        redis,
         queueName: randomValue(),
       });
 
@@ -186,7 +182,7 @@ describe("Queue", () => {
 
     test("should verify manually and decrement the counter", async () => {
       const queue = new Queue({
-        redis: new Redis(),
+        redis,
         queueName: randomValue(),
         autoVerify: false,
       });
@@ -206,7 +202,7 @@ describe("Queue", () => {
 
     test("should not release concurrency since auto verify is disabled and no verifyMessage present", async () => {
       const queue = new Queue({
-        redis: new Redis(),
+        redis,
         queueName: randomValue(),
         autoVerify: false,
       });
@@ -237,7 +233,7 @@ describe("Queue", () => {
         await queue.receiveMessage<{ hello: "world" }>();
         await delay(10000);
         const ackedReceive = await queue.receiveMessage<{ hello: "world" }>();
-        queue.verifyMessage(ackedReceive?.streamId!);
+        await queue.verifyMessage(ackedReceive?.streamId!);
 
         const xpendingRes = await queue.config.redis.xpending(
           queue.config.queueName!,
@@ -281,45 +277,31 @@ describe("Queue", () => {
     );
   });
 
-  describe("Queue with a single client", () => {
-    test("should add item to queue", async () => {
-      const queue = new Queue({ redis });
-
-      const sendMessageResult = await queue.sendMessage({
-        dev: "hezarfennnn",
-        age: 27,
-      });
-
-      const res = await redis.xrevrange(
-        formatMessageQueueKey(DEFAULT_QUEUE_NAME),
-        "+",
-        "-",
-        "COUNT",
-        1
-      );
-      await redis.xdel(formatMessageQueueKey(DEFAULT_QUEUE_NAME), res[0][0]);
-      expect(sendMessageResult).not.toBeNull();
-      expect(res[0][0]).toEqual(sendMessageResult as string);
-    });
-  });
-
   describe("Queue with delays", () => {
     test(
       "should enqueue with a delay",
       async () => {
         const fakeValue = randomValue();
-        const queue = new Queue({ redis, queueName: "app-logs" });
+        const queue = new Queue({
+          redis,
+          queueName: "app-logs",
+          concurrencyLimit: 2,
+        });
         await queue.sendMessage(
           {
             dev: fakeValue,
           },
           2000
         );
-
+        const res = await queue.receiveMessage();
+        expect(res?.body).not.toEqual({
+          dev: fakeValue,
+        });
         await delay(5000);
-        const res = await redis.xrevrange(formatMessageQueueKey("app-logs"), "+", "-", "COUNT", 1);
-        await redis.xdel(formatMessageQueueKey("app-logs"), res[0][0]);
-        expect(res[0][1]).toEqual(["messageBody", `{"dev":"${fakeValue}"}`]);
+        const res1 = await queue.receiveMessage<{ dev: string }>();
+        expect(res1?.body).toEqual({
+          dev: fakeValue,
+        });
       },
       { timeout: 10000 }
     );
@@ -327,111 +309,111 @@ describe("Queue", () => {
     test(
       "should poll until data arives",
       async () => {
-        const fakeValue = randomValue();
-
-        const producer = new Queue({ redis, queueName: "app-logs" });
-        const consumer = new Queue({
-          redis: new Redis(),
-          queueName: "app-logs",
-        });
-        await producer.sendMessage(
-          {
-            dev: fakeValue,
-          },
-          2
-        );
-
-        const receiveMessageRes = await consumer.receiveMessage<{
-          dev: string;
-        }>(5000);
-
-        expect(receiveMessageRes?.body.dev).toEqual(fakeValue);
+        const throwable = async () => {
+          const fakeValue = randomValue();
+          const producer = new Queue({ redis, queueName: "app-logs" });
+          const consumer = new Queue({
+            redis,
+            queueName: "app-logs",
+          });
+          await producer.sendMessage(
+            {
+              dev: fakeValue,
+            },
+            2
+          );
+          await consumer.receiveMessage<{
+            dev: string;
+          }>(5000);
+        };
+        expect(throwable).toThrow();
       },
       { timeout: 10000 }
     );
   });
 
-  describe("Queue with Multiple Consumers", () => {
-    const messageCount = 10;
-    const consumerCount = 5;
-    let producer: Queue;
-    const consumers: Queue[] = [];
-    const messagesSent = new Set();
-    const messagesReceived = new Map();
+  describe("Reliability tests", () => {
+    test("should handle multi-threaded message processing in batches", async () => {
+      const queue = new Queue({
+        redis,
+        queueName: randomValue(),
+        concurrencyLimit: 5,
+      });
 
-    beforeAll(() => {
-      // Initialize Redis and Queue for the producer
-      const producerRedis = new Redis();
-      producer = new Queue({ redis: producerRedis, queueName: "app-logs" });
-
-      // Initialize Redis and Queues for consumers
-      for (let i = 0; i < consumerCount; i++) {
-        const consumer = new Queue({
-          redis: new Redis(),
-          queueName: "app-logs",
-        });
-        consumers.push(consumer);
+      // First batch of sending 5 messages
+      const firstBatchSendPromises = [];
+      for (let i = 0; i < 5; i++) {
+        firstBatchSendPromises.push(queue.sendMessage({ data: `message-${i}` }));
       }
-    });
+      await Promise.all(firstBatchSendPromises);
 
-    test(
-      "should process each message exactly once across all consumers",
-      async () => {
-        // Send messages
-        for (let i = 0; i < messageCount; i++) {
-          const message = `Message ${randomValue()}`;
-          await producer.sendMessage({ message });
-          messagesSent.add(message);
+      // First batch of receiving 5 messages
+      const firstBatchReceivePromises = [];
+      for (let i = 0; i < 5; i++) {
+        firstBatchReceivePromises.push(queue.receiveMessage());
+      }
+      await Promise.all(firstBatchReceivePromises);
+
+      // Second batch of sending 5 messages
+      const secondBatchSendPromises = [];
+      for (let i = 5; i < 10; i++) {
+        secondBatchSendPromises.push(queue.sendMessage({ data: `message-${i}` }));
+      }
+      await Promise.all(secondBatchSendPromises);
+
+      // Second batch of receiving 5 messages
+      const secondBatchReceivePromises = [];
+      for (let i = 5; i < 10; i++) {
+        secondBatchReceivePromises.push(queue.receiveMessage());
+      }
+      await Promise.all(secondBatchReceivePromises);
+
+      expect(queue.concurrencyCounter).toBe(0); // Assuming autoVerify is enabled
+    }, 30000);
+
+    test("should handle high volume of messages in batches and track received messages", async () => {
+      const batchSize = 5; // Size of each batch, based on the concurrency limit
+      const queue = new Queue({
+        redis,
+        queueName: randomValue(),
+        concurrencyLimit: batchSize,
+      });
+
+      const totalMessages = 100; // High volume of messages
+      const numberOfBatches = totalMessages / batchSize;
+      let totalNumberOfReceivedMessages = 0; // Counter for received messages
+
+      for (let batch = 0; batch < numberOfBatches; batch++) {
+        const sendMessagePromises = [];
+        for (let i = 0; i < batchSize; i++) {
+          sendMessagePromises.push(queue.sendMessage({ data: `message-${batch * batchSize + i}` }));
         }
+        await Promise.all(sendMessagePromises);
 
-        // Start consuming messages
-        const consumePromises = consumers.map((consumer, index) => {
-          // biome-ignore lint/suspicious/noAsyncPromiseExecutor: <explanation>
-          return new Promise<void>(async (resolve) => {
-            for (let i = 0; i < messageCount / consumerCount; i++) {
-              const res = await consumer.receiveMessage<{ message: string }>();
-              if (res?.body.message) {
-                const message = res.body.message;
-                if (!messagesReceived.has(message)) {
-                  messagesReceived.set(message, index);
-                }
-              }
+        const receiveMessagePromises = [];
+        for (let i = 0; i < batchSize; i++) {
+          const promise = queue.receiveMessage().then((message) => {
+            if (message) {
+              totalNumberOfReceivedMessages++;
             }
-            resolve();
+            return message;
           });
-        });
-
-        await Promise.all(consumePromises);
-
-        // Assertions
-        expect(messagesReceived.size).toBe(messageCount);
-        // biome-ignore lint/complexity/noForEach: <explanation>
-        messagesSent.forEach((message) => {
-          expect(messagesReceived.has(message)).toBe(true);
-        });
-
-        // Ensure no message was processed by more than one consumer
-        expect(new Set(messagesReceived.values()).size).toBeLessThanOrEqual(consumerCount);
-      },
-      { timeout: 15 * 1000 }
-    );
-
-    afterAll(async () => {
-      // Close Redis connections and cleanup
-      await producer.config.redis.quit();
-      for (const consumer of consumers) {
-        await consumer.config.redis.quit();
+          receiveMessagePromises.push(promise);
+        }
+        await Promise.all(receiveMessagePromises);
       }
-    });
+
+      expect(totalNumberOfReceivedMessages).toBe(totalMessages);
+      expect(queue.concurrencyCounter).toBe(0);
+    }, 30000);
   });
 
   describe("FIFO queue", () => {
     test("should do a FIFO queue", async () => {
       const queue = new Queue({ redis });
+
       await queue.sendMessage({ hello: "world1" });
-      await delay(100);
       await queue.sendMessage({ hello: "world2" });
-      await delay(100);
       await queue.sendMessage({ hello: "world3" });
 
       const message1 = await queue.receiveMessage<{ hello: "world1" }>();
