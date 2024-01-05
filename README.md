@@ -1,6 +1,6 @@
 # Upstash SQS
 
-[![Tests](https://github.com/upstash/upstash-sqs/actions/workflows/tests.yaml/badge.svg)](https://github.com/upstash/upstash-sqs/actions/workflows/tests.yaml)
+[![Tests](https://github.com/upstash/sqs/actions/workflows/tests.yaml/badge.svg)](https://github.com/upstash/sqs/actions/workflows/tests.yaml)
 
 A simple, fast, robust stream based message queue for Node.js, backed by Upstash Redis.
 
