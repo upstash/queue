@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { Redis } from "@upstash/redis";
 
+import { Queue } from ".";
 import {
   DEFAULT_AUTO_VERIFY,
   DEFAULT_CONCURRENCY_LIMIT,
@@ -8,7 +9,6 @@ import {
   DEFAULT_QUEUE_NAME,
   ERROR_MAP,
 } from "./constants";
-import { Queue } from "./queue";
 import { delay, formatMessageQueueKey } from "./utils";
 
 const randomValue = () => crypto.randomUUID().slice(0, 8);

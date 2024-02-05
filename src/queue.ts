@@ -1,4 +1,5 @@
-import crypto from "node:crypto";
+import { v4 as generateRandomUUID } from "uuid";
+
 import {
   DEFAULT_AUTO_VERIFY,
   DEFAULT_CONCURRENCY_LIMIT,
@@ -60,11 +61,13 @@ export class Queue {
 
       concurrencyLimit: config.concurrencyLimit ?? DEFAULT_CONCURRENCY_LIMIT,
       autoVerify: config.autoVerify ?? DEFAULT_AUTO_VERIFY,
-      consumerGroupName: config.consumerGroupName ?? DEFAULT_CONSUMER_GROUP_NAME,
+      consumerGroupName:
+        config.consumerGroupName ?? DEFAULT_CONSUMER_GROUP_NAME,
       queueName: config.queueName
         ? this.appendPrefixTo(config.queueName)
         : this.appendPrefixTo(DEFAULT_QUEUE_NAME),
-      visibilityTimeout: config.visibilityTimeout ?? DEFAULT_VISIBILITY_TIMEOUT_IN_MS,
+      visibilityTimeout:
+        config.visibilityTimeout ?? DEFAULT_VISIBILITY_TIMEOUT_IN_MS,
     };
   }
 
@@ -81,7 +84,10 @@ export class Queue {
       this.config.consumerGroupName,
       "Consumer group name cannot be empty when initializing consumer group"
     );
-    invariant(this.config.queueName, "Queue name cannot be empty when initializing consumer group");
+    invariant(
+      this.config.queueName,
+      "Queue name cannot be empty when initializing consumer group"
+    );
 
     try {
       await this.config.redis.xgroup(this.config.queueName, {
@@ -91,8 +97,17 @@ export class Queue {
         options: { MKSTREAM: true },
       });
       this.hasConsumerGroupInitialized = true;
-    } catch {
-      return null;
+    } catch (e) {
+      if (e instanceof Error) {
+        if (
+          e.message.includes("BUSYGROUP Consumer Group name already exists")
+        ) {
+          this.hasConsumerGroupInitialized = true;
+          return;
+        }
+      }
+
+      return;
     }
   }
 
@@ -131,7 +146,8 @@ export class Queue {
     this.checkIfReceiveMessageAllowed();
     await this.initializeConsumerGroup();
 
-    const xclaimParsedMessage = await this.claimStuckPendingMessageAndVerify<TStreamResult>();
+    const xclaimParsedMessage =
+      await this.claimStuckPendingMessageAndVerify<TStreamResult>();
     if (xclaimParsedMessage) {
       return xclaimParsedMessage;
     }
@@ -147,12 +163,12 @@ export class Queue {
       concurrencyLimit === DEFAULT_CONCURRENCY_LIMIT &&
       this.concurrencyCounter >= DEFAULT_CONCURRENCY_LIMIT + 1;
 
-    const concurrencyAboveTheMaxLimit = this.concurrencyCounter > MAX_CONCURRENCY_LIMIT;
+    const concurrencyAboveTheMaxLimit =
+      this.concurrencyCounter > MAX_CONCURRENCY_LIMIT;
 
     if (concurrencyNotSetAndAboveDefaultLimit) {
       throw new Error(ERROR_MAP.CONCURRENCY_DEFAULT_LIMIT_EXCEEDED);
     }
-
     this.incrementConcurrencyCount();
 
     if (concurrencyAboveTheMaxLimit) {
@@ -166,7 +182,9 @@ export class Queue {
     const { autoVerify } = this.config;
     const consumerName = this.generateRandomConsumerName();
 
-    const xclaimParsedMessage = await this.claimAndParseMessage<TStreamResult>(consumerName);
+    const xclaimParsedMessage = await this.claimAndParseMessage<TStreamResult>(
+      consumerName
+    );
 
     if (xclaimParsedMessage && autoVerify) {
       await this.verifyMessage(xclaimParsedMessage.streamId);
@@ -181,7 +199,10 @@ export class Queue {
 
   private async removeEmptyConsumer(consumer: string) {
     const { redis, consumerGroupName, queueName } = this.config;
-    invariant(consumerGroupName, "Consumer group name cannot be empty when removing a consumer");
+    invariant(
+      consumerGroupName,
+      "Consumer group name cannot be empty when removing a consumer"
+    );
     invariant(queueName, "Queue name cannot be empty when removing a consumer");
 
     await redis.xgroup(queueName, {
@@ -199,10 +220,17 @@ export class Queue {
   }
 
   private async autoClaim(consumerName: string) {
-    const { redis, consumerGroupName, queueName, visibilityTimeout } = this.config;
-    invariant(consumerGroupName, "Consumer group name cannot be empty when receiving a message");
+    const { redis, consumerGroupName, queueName, visibilityTimeout } =
+      this.config;
+    invariant(
+      consumerGroupName,
+      "Consumer group name cannot be empty when receiving a message"
+    );
     invariant(queueName, "Queue name cannot be empty when receving a message");
-    invariant(visibilityTimeout, "Visibility timeout name cannot be empty when receving a message");
+    invariant(
+      visibilityTimeout,
+      "Visibility timeout name cannot be empty when receving a message"
+    );
 
     return await redis.xautoclaim(
       queueName,
@@ -219,7 +247,9 @@ export class Queue {
   ): Promise<ParsedStreamMessage<TStreamResult>> {
     const { autoVerify } = this.config;
 
-    const parsedXreadMessage = await this.readAndParseMessage<TStreamResult>(blockTimeMs);
+    const parsedXreadMessage = await this.readAndParseMessage<TStreamResult>(
+      blockTimeMs
+    );
 
     if (parsedXreadMessage && autoVerify) {
       await this.verifyMessage(parsedXreadMessage.streamId);
@@ -241,9 +271,15 @@ export class Queue {
     return parseXreadGroupResponse<StreamResult>(xreadRes);
   }
 
-  private async receiveBlockingMessage(blockTimeMs: number, consumerName: string) {
+  private async receiveBlockingMessage(
+    blockTimeMs: number,
+    consumerName: string
+  ) {
     const { redis, consumerGroupName, queueName } = this.config;
-    invariant(consumerGroupName, "Consumer group name cannot be empty when receiving a message");
+    invariant(
+      consumerGroupName,
+      "Consumer group name cannot be empty when receiving a message"
+    );
     invariant(queueName, "Queue name cannot be empty when receving a message");
 
     return redis.xreadgroup(consumerGroupName, consumerName, queueName, ">", {
@@ -254,12 +290,21 @@ export class Queue {
 
   private async receiveNonBlockingMessage(consumerName: string) {
     const { redis, consumerGroupName, queueName } = this.config;
-    invariant(consumerGroupName, "Consumer group name cannot be empty when receiving a message");
+    invariant(
+      consumerGroupName,
+      "Consumer group name cannot be empty when receiving a message"
+    );
     invariant(queueName, "Queue name cannot be empty when receving a message");
 
-    const data = await redis.xreadgroup(consumerGroupName, consumerName, queueName, ">", {
-      count: 1,
-    });
+    const data = await redis.xreadgroup(
+      consumerGroupName,
+      consumerName,
+      queueName,
+      ">",
+      {
+        count: 1,
+      }
+    );
     return data;
   }
 
@@ -274,7 +319,10 @@ export class Queue {
         "Consumer group name cannot be empty when verifying a message"
       );
 
-      invariant(this.config.queueName, "Queue name cannot be empty when verifying a message");
+      invariant(
+        this.config.queueName,
+        "Queue name cannot be empty when verifying a message"
+      );
 
       const xackRes = await redis.xack(
         this.config.queueName,
@@ -287,7 +335,9 @@ export class Queue {
       return "NOT VERIFIED";
     } catch (finalError) {
       console.error(
-        `Final attempt to acknowledge message failed: ${(finalError as Error).message}`
+        `Final attempt to acknowledge message failed: ${
+          (finalError as Error).message
+        }`
       );
       return "NOT VERIFIED";
     }
@@ -297,7 +347,7 @@ export class Queue {
     if (this.concurrencyCounter > MAX_CONCURRENCY_LIMIT) {
       throw new Error(ERROR_MAP.CONCURRENCY_LIMIT_EXCEEDED);
     }
-    const randomUUID = crypto.randomUUID();
+    const randomUUID = generateRandomUUID();
     return this.appendPrefixTo(randomUUID);
   };
 
