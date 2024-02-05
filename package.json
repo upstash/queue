@@ -27,7 +27,9 @@
     "prepare": "husky install"
   },
   "dependencies": {
-    "@upstash/redis": "1.28.0"
+    "@types/uuid": "^9.0.8",
+    "@upstash/redis": "1.28.0",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "typescript": "^5.0.0",
