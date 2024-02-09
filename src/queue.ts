@@ -1,4 +1,5 @@
-import crypto from "node:crypto";
+import { v4 as generateRandomUUID } from "uuid";
+
 import {
   DEFAULT_AUTO_VERIFY,
   DEFAULT_CONCURRENCY_LIMIT,
@@ -91,8 +92,15 @@ export class Queue {
         options: { MKSTREAM: true },
       });
       this.hasConsumerGroupInitialized = true;
-    } catch {
-      return null;
+    } catch (e) {
+      if (e instanceof Error) {
+        if (e.message.includes("BUSYGROUP Consumer Group name already exists")) {
+          this.hasConsumerGroupInitialized = true;
+          return;
+        }
+      }
+
+      return;
     }
   }
 
@@ -152,7 +160,6 @@ export class Queue {
     if (concurrencyNotSetAndAboveDefaultLimit) {
       throw new Error(ERROR_MAP.CONCURRENCY_DEFAULT_LIMIT_EXCEEDED);
     }
-
     this.incrementConcurrencyCount();
 
     if (concurrencyAboveTheMaxLimit) {
@@ -297,7 +304,7 @@ export class Queue {
     if (this.concurrencyCounter > MAX_CONCURRENCY_LIMIT) {
       throw new Error(ERROR_MAP.CONCURRENCY_LIMIT_EXCEEDED);
     }
-    const randomUUID = crypto.randomUUID();
+    const randomUUID = generateRandomUUID();
     return this.appendPrefixTo(randomUUID);
   };
 
