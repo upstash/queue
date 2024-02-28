@@ -16,6 +16,7 @@ A simple, fast, robust stream based message queue for Node.js, backed by Upstash
 
 ```ts
 import { Redis } from "@upstash/redis";
+import { Queue } from "@upstash/sqs";
 
 const queue = new Queue({ redis: new Redis() });
 
@@ -44,10 +45,10 @@ Upstash SQS brings the simplicity and performance of Redis streams to Node.js de
 
 - [Installation](#installation)
 - [Getting Started](#getting-started)
-- [Sending a Message](#sending-a-message)
-- [Receiving a Message](#receiving-a-message)
-- [Verifying a Message](#verifying-a-message)
-- [Configuration Options](#configuration-options)
+  - [Sending a Message](#sending-a-message)
+  - [Receiving a Message](#receiving-a-message)
+  - [Verifying a Message](#verifying-a-message)
+  - [Configuration Options](#configuration-options)
 - [Examples](#examples)
   - [FIFO Example](#fifo-example)
   - [Sending Message with Delay then Poll](#sending-message-with-delay-then-poll)
@@ -72,7 +73,7 @@ const redis = new Redis();
 const queue = new Queue({ redis });
 ```
 
-## Sending a Message
+### Sending a Message
 
 ```typescript
 const payload = { key: "value" };
@@ -80,7 +81,7 @@ const delayInSeconds = 0; // Set to 0 for immediate delivery
 const streamId = await queue.sendMessage(payload, delayInSeconds);
 ```
 
-## Receiving a Message
+### Receiving a Message
 
 ```typescript
 const pollingForNowMessages = 1000; // Set to 0 for non-blocking, otherwise it will try to get a message then fail if none is available
@@ -88,7 +89,7 @@ const receivedMessage = await queue.receiveMessage(pollingForNowMessages);
 console.log("Received Message:", receivedMessage);
 ```
 
-## Verifying a Message
+### Verifying a Message
 
 ```typescript
 const streamId = "some_stream_id";
@@ -96,7 +97,7 @@ const verificationStatus = await queue.verifyMessage(streamId);
 console.log("Verification Status:", verificationStatus);
 ```
 
-## Configuration Options
+### Configuration Options
 
 When initializing the Queue instance, you can provide various configuration options:
 
@@ -107,7 +108,7 @@ When initializing the Queue instance, you can provide various configuration opti
 - consumerGroupName: Group that holds consumers when automatically created (default: "Messages").
 - visibilityTimeout: Time until recently sent messages become visible to other consumers (default: 30 seconds).
 
-## Verifying a Message
+#### Verifying a Message
 
 ```typescript
 const queueConfig = {
