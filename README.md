@@ -9,7 +9,7 @@ A simple, fast, robust stream based message queue for Node.js, backed by Upstash
 - Simple: ~350 LOC, and single dependency.
 - Lightweight: Under ~5kb zipped
 - Fast: maximizes throughput by minimizing Redis and network overhead. Benchmarks well.
-- Robust: designed with concurrency, atomicity, and failure in mind; full code coverage.
+- Robust: designed with concurrency, and failure in mind; full code coverage.
 
 ```ts
 import { Redis } from "@upstash/redis";
