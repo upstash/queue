@@ -4,7 +4,7 @@
   "module": "./dist/index.mjs",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "version": "0.1.0",
+  "version": "1.0.1",
   "keywords": [
     "redis",
     "stream",
@@ -13,6 +13,10 @@
     "queue"
   ],
   "author": "Oguzhan Olguncu <oguzhan@upstash.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/upstash/sqs"
+  },
   "license": "MIT",
   "files": [
     "dist"
