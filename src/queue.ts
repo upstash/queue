@@ -253,7 +253,7 @@ export class Queue {
     invariant(consumerGroupName, "Consumer group name cannot be empty when receiving a message");
     invariant(queueName, "Queue name cannot be empty when receving a message");
 
-    return redis.xreadgroup(consumerGroupName, consumerName, queueName, ">", {
+    return await redis.xreadgroup(consumerGroupName, consumerName, queueName, ">", {
       count: 1,
       blockMS: blockTimeMs,
     });

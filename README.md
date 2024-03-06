@@ -1,4 +1,4 @@
-# Upstash SQS &middot; ![license](https://img.shields.io/npm/l/%40upstash%2Fsqs) [![Tests](https://github.com/upstash/sqs/actions/workflows/tests.yaml/badge.svg)](https://github.com/upstash/sqs/actions/workflows/tests.yaml) ![npm (scoped)](https://img.shields.io/npm/v/@upstash/sqs) ![npm bundle size](https://img.shields.io/bundlephobia/minzip/@upstash/sqs) ![npm weekly download](https://img.shields.io/npm/dw/%40upstash%2Fsqs)
+# Upstash Queue &middot; ![license](https://img.shields.io/npm/l/%40upstash%2Fqueue) [![Tests](https://github.com/upstash/queue/actions/workflows/tests.yaml/badge.svg)](https://github.com/upstash/queue/actions/workflows/tests.yaml) ![npm (scoped)](https://img.shields.io/npm/v/@upstash/queue) ![npm bundle size](https://img.shields.io/bundlephobia/minzip/@upstash/queue) ![npm weekly download](https://img.shields.io/npm/dw/%40upstash%2Fqueue)
 
 > [!NOTE]> **This project is in the Experimental Stage.**
 >
@@ -13,7 +13,7 @@ A simple, fast, robust stream based message queue for Node.js, backed by Upstash
 
 ```ts
 import { Redis } from "@upstash/redis";
-import { Queue } from "@upstash/sqs";
+import { Queue } from "@upstash/queue";
 
 const queue = new Queue({ redis: new Redis() });
 
@@ -25,11 +25,11 @@ expect(message1?.body).toEqual({ hello: "world1" });
 
 ## Introduction
 
-`@upstash/sqs` is a Node.js library that provides a simple and efficient way to implement a message queue system using Redis streams. It offers features such as message sending, receiving, automatic message verification, and concurrency control. This library is particularly useful for building distributed systems and background job processing.
+`@upstash/queue` is a Node.js library that provides a simple and efficient way to implement a message queue system using Redis streams. It offers features such as message sending, receiving, automatic message verification, and concurrency control. This library is particularly useful for building distributed systems and background job processing.
 
-## Why Upstash SQS?
+## Why Upstash Queue?
 
-Upstash SQS brings the simplicity and performance of Redis streams to Node.js developers, making it easy to integrate a robust message queue system into their applications. Whether you're working on distributed systems, background job processing, or other asynchronous workflows, Upstash SQS provides essential features such as message sending, receiving, automatic verification, and concurrency control.
+Upstash queue brings the simplicity and performance of Redis streams to Node.js developers, making it easy to integrate a robust message queue system into their applications. Whether you're working on distributed systems, background job processing, or other asynchronous workflows, Upstash queue provides essential features such as message sending, receiving, automatic verification, and concurrency control.
 
 **Key Features:**
 
@@ -54,17 +54,17 @@ Upstash SQS brings the simplicity and performance of Redis streams to Node.js de
 
 ## Installation
 
-To start using Upstash SQS, install the library via npm:
+To start using Upstash queue, install the library via npm:
 
 ```sh
-npm install @upstash/sqs
+npm install @upstash/queue
 ```
 
 ## Getting Started
 
 ```typescript
 import Redis from "@upstash/redis";
-import { Queue } from "@upstash/sqs";
+import { Queue } from "@upstash/queue";
 
 const redis = new Redis();
 const queue = new Queue({ redis });

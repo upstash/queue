@@ -1,10 +1,8 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import { useState } from "react";
 
-import { Queue } from "./../../../src";
+import { CSSTransition, TransitionGroup } from "react-transition-group";
 import * as uuid from "uuid";
-import { Redis } from "@upstash/redis";
-import { TransitionGroup, CSSTransition } from "react-transition-group";
 
 type MessageBody = {
   content: string;
@@ -15,7 +13,7 @@ type MessageWithId = {
   body: MessageBody;
 };
 
-const queueName = `sqs-${uuid.v4().substring(0, 18)}`;
+const queueName = `queue-${uuid.v4().substring(0, 18)}`;
 
 export default function Home() {
   const [messageInput, setMessageInput] = useState<string>(
@@ -57,12 +55,12 @@ export default function Home() {
     <main>
       <header>
         <h1 className="text-4xl font-bold">
-          Welcome to <span className="text-primary-500">@upstash/sqs</span>
+          Welcome to <span className="text-primary-500">@upstash/queue</span>
         </h1>
 
         <p className="mt-4">
-          This is an example of how to use @upstash/sqs as a FIFO queue in your
-          Next.js application.
+          This is an example of how to use @upstash/queue as a FIFO queue in
+          your Next.js application.
         </p>
 
         <p className="mt-4">

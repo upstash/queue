@@ -4,6 +4,9 @@
   "linter": {
     "enabled": true,
     "rules": {
+      "nursery": {
+        "useAwait": "error"
+      },
       "recommended": true,
       "a11y": {
         "noSvgWithoutTitle": "off"
