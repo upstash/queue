@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { parseXclaimAutoResponse, parseXreadGroupResponse } from "./utils";
 
 describe("Response Parsers", () => {
-  test("should parse XCLAIMAUTO response", async () => {
+  test("should parse XCLAIMAUTO response", () => {
     const input = ["0-0", [["1703754659687-0", ["messageBody", '{"hello":"world"}']]], []];
 
     expect(parseXclaimAutoResponse(input)).toEqual({
@@ -11,7 +11,7 @@ describe("Response Parsers", () => {
     });
   });
 
-  test("should parse XREADGROUP response", async () => {
+  test("should parse XREADGROUP response", () => {
     const input = [
       ["UpstashMQ:1251e0e7", [["1703755686316-0", ["messageBody", '{"hello":"world"}']]]],
     ];

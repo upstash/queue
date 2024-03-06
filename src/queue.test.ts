@@ -308,7 +308,7 @@ describe("Queue", () => {
 
     test(
       "should poll until data arives",
-      async () => {
+      () => {
         const throwable = async () => {
           const fakeValue = randomValue();
           const producer = new Queue({ redis, queueName: "app-logs" });

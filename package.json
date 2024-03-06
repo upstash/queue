@@ -1,45 +1,39 @@
 {
-  "name": "@upstash/sqs",
+  "name": "@upstash/queue",
   "description": "A message queue based on Redis streams, without dependencies.",
   "module": "./dist/index.mjs",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "version": "1.0.1",
-  "keywords": [
-    "redis",
-    "stream",
-    "upstash",
-    "message",
-    "queue"
-  ],
+  "version": "1.0.0",
+  "keywords": ["redis", "stream", "upstash", "message", "queue"],
   "author": "Oguzhan Olguncu <oguzhan@upstash.com>",
   "repository": {
     "type": "git",
-    "url": "https://github.com/upstash/sqs"
+    "url": "https://github.com/upstash/queue"
   },
   "license": "MIT",
-  "files": [
-    "dist"
-  ],
+  "files": ["dist"],
   "bugs": {
-    "url": "https://github.com/upstash/sqs/issues"
+    "url": "https://github.com/upstash/queue/issues"
   },
   "scripts": {
     "test": "bun test src --coverage --bail",
     "fmt": "bunx biome check --apply ./src",
     "build": "tsup",
-    "prepare": "husky install"
+    "prepare": "husky install | chmod ug+x .husky/*"
   },
   "dependencies": {
-    "@types/uuid": "^9.0.8",
     "@upstash/redis": "1.28.0",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
-    "typescript": "^5.0.0",
-    "@biomejs/biome": "^1.4.1",
+    "@types/uuid": "^9.0.8",
+    "typescript": "latest",
+    "@biomejs/biome": "^1.5.3",
     "bun-types": "latest",
-    "husky": "^8.0.3",
-    "tsup": "latest"
+    "husky": "^9.0.11",
+    "tsup": "latest",
+    "@commitlint/cli": "^18.6.0",
+    "@commitlint/config-conventional": "^18.6.0"
   }
 }
