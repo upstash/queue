@@ -5,22 +5,14 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "version": "1.0.0",
-  "keywords": [
-    "redis",
-    "stream",
-    "upstash",
-    "message",
-    "queue"
-  ],
+  "keywords": ["redis", "stream", "upstash", "message", "queue"],
   "author": "Oguzhan Olguncu <oguzhan@upstash.com>",
   "repository": {
     "type": "git",
     "url": "https://github.com/upstash/queue"
   },
   "license": "MIT",
-  "files": [
-    "dist"
-  ],
+  "files": ["dist"],
   "bugs": {
     "url": "https://github.com/upstash/queue/issues"
   },
@@ -28,7 +20,7 @@
     "test": "bun test src --coverage --bail",
     "fmt": "bunx biome check --apply ./src",
     "build": "tsup",
-    "prepare": "husky install"
+    "prepare": "husky install | chmod ug+x .husky/*"
   },
   "dependencies": {
     "@upstash/redis": "1.28.0",
