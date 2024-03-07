@@ -1,4 +1,5 @@
-# Upstash Queue &middot; ![license](https://img.shields.io/npm/l/%40upstash%2Fqueue) [![Tests](https://github.com/upstash/queue/actions/workflows/tests.yaml/badge.svg)](https://github.com/upstash/queue/actions/workflows/tests.yaml) ![npm (scoped)](https://img.shields.io/npm/v/@upstash/queue) ![npm bundle size](https://img.shields.io/bundlephobia/minzip/@upstash/queue) ![npm weekly download](https://img.shields.io/npm/dw/%40upstash%2Fqueue)
+# Upstash Queue 
+&middot; ![license](https://img.shields.io/npm/l/%40upstash%2Fqueue) [![Tests](https://github.com/upstash/queue/actions/workflows/tests.yaml/badge.svg)](https://github.com/upstash/queue/actions/workflows/tests.yaml) ![npm (scoped)](https://img.shields.io/npm/v/@upstash/queue) ![npm bundle size](https://img.shields.io/bundlephobia/minzip/@upstash/queue) ![npm weekly download](https://img.shields.io/npm/dw/%40upstash%2Fqueue)
 
 > [!NOTE]  
 > **This project is in the Experimental Stage.**
