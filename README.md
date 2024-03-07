@@ -1,10 +1,10 @@
 # Upstash Queue &middot; ![license](https://img.shields.io/npm/l/%40upstash%2Fqueue) [![Tests](https://github.com/upstash/queue/actions/workflows/tests.yaml/badge.svg)](https://github.com/upstash/queue/actions/workflows/tests.yaml) ![npm (scoped)](https://img.shields.io/npm/v/@upstash/queue) ![npm bundle size](https://img.shields.io/bundlephobia/minzip/@upstash/queue) ![npm weekly download](https://img.shields.io/npm/dw/%40upstash%2Fqueue)
 
-> [!NOTE]> **This project is in the Experimental Stage.**
->
+> [!NOTE]  
+> **This project is in the Experimental Stage.**
 > We declare this project experimental to set clear expectations for your usage. There could be known or unknown bugs, the API could evolve, or the project could be discontinued if it does not find community adoption. While we cannot provide professional support for experimental projects, we’d be happy to hear from you if you see value in this project!
 
-A simple, fast, robust stream based message queue for Node.js, backed by Upstash Redis.
+A simple, fast, robust stream based message queue for Node.js, backed by Upstash Redis inspired by AWS SQS.
 
 - Simple: ~350 LOC, and single dependency.
 - Lightweight: Under ~5kb zipped
@@ -29,7 +29,7 @@ expect(message1?.body).toEqual({ hello: "world1" });
 
 ## Why Upstash Queue?
 
-Upstash queue brings the simplicity and performance of Redis streams to Node.js developers, making it easy to integrate a robust message queue system into their applications. Whether you're working on distributed systems, background job processing, or other asynchronous workflows, Upstash queue provides essential features such as message sending, receiving, automatic verification, and concurrency control.
+Upstash Queue brings the simplicity and performance of Redis streams to Node.js developers, making it easy to integrate a robust message queue system into their applications. Whether you're working on distributed systems, background job processing, or other asynchronous workflows, Upstash Queue provides essential features such as message sending, receiving, automatic verification, and concurrency control.
 
 **Key Features:**
 
@@ -54,7 +54,7 @@ Upstash queue brings the simplicity and performance of Redis streams to Node.js 
 
 ## Installation
 
-To start using Upstash queue, install the library via npm:
+To start using Upstash Queue, install the library via npm:
 
 ```sh
 npm install @upstash/queue
