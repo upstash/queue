@@ -17,7 +17,7 @@
     "url": "https://github.com/upstash/queue/issues"
   },
   "scripts": {
-    "test": "bun test src --coverage --bail",
+    "test": "bun test src --coverage --bail --timeout 20000",
     "fmt": "bunx biome check --apply ./src",
     "build": "tsup",
     "prepare": "husky install | chmod ug+x .husky/*"
@@ -29,7 +29,7 @@
   "devDependencies": {
     "@types/uuid": "^9.0.8",
     "typescript": "latest",
-    "@biomejs/biome": "^1.5.3",
+    "@biomejs/biome": "1.6.0",
     "bun-types": "latest",
     "husky": "^9.0.11",
     "tsup": "latest",

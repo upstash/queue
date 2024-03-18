@@ -10,14 +10,14 @@ import {
   MAX_CONCURRENCY_LIMIT,
 } from "./constants";
 import {
-  ParsedStreamMessage,
+  type ParsedStreamMessage,
   formatMessageQueueKey,
   invariant,
   parseXclaimAutoResponse,
   parseXreadGroupResponse,
 } from "./utils";
 
-import { Redis } from "@upstash/redis";
+import type { Redis } from "@upstash/redis";
 
 export type QueueConfig = {
   redis: Redis;
