@@ -5,12 +5,12 @@
 > **This project is in the Experimental Stage.**
 > We declare this project experimental to set clear expectations for your usage. There could be known or unknown bugs, the API could evolve, or the project could be discontinued if it does not find community adoption. While we cannot provide professional support for experimental projects, we’d be happy to hear from you if you see value in this project!
 
-A simple, fast, robust stream based message queue for Node.js, backed by Upstash Redis inspired by AWS SQS.
+A simple, fast, robust, stream-based message queue for Node.js, backed by Upstash Redis, inspired by AWS SQS.
 
 - Simple: ~350 LOC, and single dependency.
-- Lightweight: Under ~5kb zipped
-- Fast: maximizes throughput by minimizing Redis and network overhead. Benchmarks well.
-- Robust: designed with concurrency, and failure in mind; full code coverage.
+- Lightweight: Under ~5kb zipped.
+- Fast: Maximizes throughput by minimizing Redis and network overhead. Benchmarks well.
+- Robust: Designed with concurrency and failure in mind; full code coverage.
 
 ```ts
 import { Redis } from "@upstash/redis";
@@ -34,10 +34,10 @@ Upstash Queue brings the simplicity and performance of Redis streams to Node.js 
 
 **Key Features:**
 
-- **Efficiency:** Leverage the speed and reliability of Redis streams for message handling.
+- **Efficiency:** Leverages the speed and reliability of Redis streams for message handling.
 - **Simplicity:** Dead simple implementation of distributed systems and background job processing with a clean and intuitive API.
-- **Concurrency Control:** Easily manage concurrent message processing to optimize system performance.
-- **Automatic Verification:** Benefit from built-in message verification mechanisms for reliable and secure communication.
+- **Concurrency Control:** Easily manages concurrent message processing to optimize system performance.
+- **Automatic Verification:** Benefits from built-in message verification mechanisms for reliable and secure communication.
 
 ## Table of Contents
 
@@ -75,15 +75,15 @@ const queue = new Queue({ redis });
 
 ```typescript
 const payload = { key: "value" };
-const delayInSeconds = 0; // Set to 0 for immediate delivery
+const delayInSeconds = 0; // Set to 0 for immediate delivery.
 const streamId = await queue.sendMessage(payload, delayInSeconds);
 ```
 
 ### Receiving a Message
 
 ```typescript
-const pollingForNowMessages = 1000; // Set to 0 for non-blocking, otherwise it will try to get a message then fail if none is available
-const receivedMessage = await queue.receiveMessage(pollingForNowMessages);
+const pollingForNewMessages = 1000; // Set to 0 for non-blocking, otherwise, it will try to get a message then fail if none is available.
+const receivedMessage = await queue.receiveMessage(pollingForNewMessages);
 console.log("Received Message:", receivedMessage);
 ```
 
@@ -115,7 +115,7 @@ const queueConfig = {
   concurrencyLimit: 2,
   autoVerify: false,
   consumerGroupName: "MyConsumers",
-  visibilityTimeout: 60000, // 1 minute
+  visibilityTimeout: 60000, // 1 minute.
 };
 
 const customQueue = new Queue(queueConfig);
@@ -133,11 +133,11 @@ await queue.sendMessage({ hello: "world2" });
 await delay(100);
 await queue.sendMessage({ hello: "world3" });
 
-const message1 = await queue.receiveMessage<{ hello: "world1" }>(); // Logs out { hello: "world1" }
+const message1 = await queue.receiveMessage<{ hello: "world1" }>(); // Logs out { hello: "world1" }.
 
-const message2 = await queue.receiveMessage<{ hello: "world2" }>(); // Logs out { hello: "world2" }
+const message2 = await queue.receiveMessage<{ hello: "world2" }>(); // Logs out { hello: "world2" }.
 
-const message3 = await queue.receiveMessage<{ hello: "world3" }>(); // Logs out { hello: "world3" }
+const message3 = await queue.receiveMessage<{ hello: "world3" }>(); // Logs out { hello: "world3" }.
 ```
 
 ### Sending Message with Delay then Poll
@@ -169,15 +169,15 @@ const receiveMessageRes = await consumer.receiveMessage<{
 const queue = new Queue({ redis, autoVerify: false });
 await queue.sendMessage({ hello: "world" });
 
-const message = await queue.receiveMessage<{ hello: "world" }>(); // Logs out { hello: "world" }
+const message = await queue.receiveMessage<{ hello: "world" }>(); // Logs out { hello: "world" }.
 if (message) {
-  await queue.verifyMessage(message.streamId); //Logs out "VERIFIED" or "NOT VERIFIED"
+  await queue.verifyMessage(message.streamId); //Logs out "VERIFIED" or "NOT VERIFIED".
 }
 ```
 
 ### Concurrent Message Processing/Consuming
 
-If `concurrencyLimit` is not set one of the `receiveMessage()` will throw. You need to explicitly set the concurrencyLimit. Default is 1.
+If `concurrencyLimit` is not set, one of the `receiveMessage()` will throw. You need to explicitly set the concurrencyLimit. Default is 1.
 
 ```typescript
 const queue = new Queue({
