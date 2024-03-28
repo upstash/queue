@@ -23,7 +23,7 @@
     "prepare": "husky install | chmod ug+x .husky/*"
   },
   "dependencies": {
-    "@upstash/redis": "1.28.0",
+    "@upstash/redis": "1.29.0",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
