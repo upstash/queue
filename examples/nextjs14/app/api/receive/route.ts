@@ -1,16 +1,15 @@
-import { Queue } from "../../../../../src";
+import { Queue } from "@upstash/queue";
 import { Redis } from "@upstash/redis";
 
 const redis = new Redis({
-  url: "https://fit-ape-37405.upstash.io",
-  token:
-    "AZIdASQgYTU1NjE1MTQtYjIxNS00NDIwLWJlYTItYWYzOGNmNGYwMWE5ZDA0MDExY2UxOGFjNDI2ZGE4MzliYjQyY2ZkNTRkZjI=",
+  url: process.env.UPSTASH_REDIS_REST_URL as string,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN as string,
 });
 
 type MessageBody = {
   message: string;
 };
-export async function POST(req: Request, res: Response) {
+export async function POST(req: Request) {
   const { queueName } = await req.json();
 
   const queue = new Queue({

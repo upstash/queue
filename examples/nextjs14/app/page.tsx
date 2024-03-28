@@ -16,9 +16,7 @@ type MessageWithId = {
 const queueName = `queue-${uuid.v4().substring(0, 18)}`;
 
 export default function Home() {
-  const [messageInput, setMessageInput] = useState<string>(
-    uuid.v4().substring(0, 18)
-  );
+  const [messageInput, setMessageInput] = useState<string>(uuid.v4().substring(0, 18));
   const [queueMessages, setQueueMessages] = useState<MessageWithId[]>([]);
 
   const send = async () => {
@@ -59,8 +57,8 @@ export default function Home() {
         </h1>
 
         <p className="mt-4">
-          This is an example of how to use @upstash/queue as a FIFO queue in
-          your Next.js application.
+          This is an example of how to use @upstash/queue as a FIFO queue in your Next.js
+          application.
         </p>
 
         <p className="mt-4">
@@ -76,11 +74,7 @@ export default function Home() {
             {queueMessages.length > 0 &&
               queueMessages.map((message, index) => {
                 return (
-                  <CSSTransition
-                    key={message.id}
-                    timeout={250}
-                    classNames="message"
-                  >
+                  <CSSTransition key={message.id} timeout={250} classNames="message">
                     <div className="flex flex-row items-center justify-between gap-4 w-full transform transition-all duration-500 ease-in-out">
                       <div className="bg-white px-2 h-full rounded-xl w-10 flex items-center justify-center text-sm">
                         {index}
@@ -88,17 +82,12 @@ export default function Home() {
 
                       <div className="bg-white  p-4 rounded-xl text-slate-900 shadow-sm flex flex-col gap-2  w-80">
                         <p className="font-semibold text-sm">
-                          ID:{" "}
-                          <span className="text-zinc-400  font-normal">
-                            {message.id}
-                          </span>
+                          ID: <span className="text-zinc-400  font-normal">{message.id}</span>
                         </p>
 
                         <p className="font-semibold">
                           Content:{" "}
-                          <span className="text-zinc-800  font-normal">
-                            {message.body.content}
-                          </span>
+                          <span className="text-zinc-800  font-normal">{message.body.content}</span>
                         </p>
                       </div>
                     </div>
@@ -127,6 +116,7 @@ export default function Home() {
                 const randomWord = uuid.v4().substring(0, 18);
                 setMessageInput(randomWord);
               }}
+              type="button"
             >
               Random
             </button>
@@ -137,6 +127,7 @@ export default function Home() {
               onClick={() => {
                 send();
               }}
+              type="button"
             >
               Produce
             </button>
@@ -147,6 +138,7 @@ export default function Home() {
           onClick={() => {
             receive();
           }}
+          type="button"
         >
           Consume
         </button>

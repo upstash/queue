@@ -22,8 +22,7 @@
         "noDelete": "off"
       },
       "suspicious": {
-        "noExplicitAny": "off",
-        "useAwait": "error"
+        "noExplicitAny": "off"
       }
     },
     "ignore": ["node_modules", "dist"]
